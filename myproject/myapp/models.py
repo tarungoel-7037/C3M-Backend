@@ -9,7 +9,7 @@ from django.db import models
 
 
 class AuditAuditlog(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -30,7 +30,7 @@ class AuditAuditlog(models.Model):
 
 
 class AuthGroup(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=150)
 
     class Meta:
@@ -39,7 +39,7 @@ class AuthGroup(models.Model):
 
 
 class AuthGroupPermissions(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     group_id = models.IntegerField()
     permission_id = models.IntegerField()
 
@@ -49,7 +49,7 @@ class AuthGroupPermissions(models.Model):
 
 
 class AuthPermission(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255)
     content_type_id = models.IntegerField()
     codename = models.CharField(max_length=100)
@@ -60,7 +60,7 @@ class AuthPermission(models.Model):
 
 
 class ChatMessage(models.Model):
-    id = models.UUIDField()
+    id = models.UUIDField(primary_key=True)
     content = models.TextField()
     message_type = models.CharField(max_length=32)
     metadata = models.JSONField()
@@ -76,7 +76,7 @@ class ChatMessage(models.Model):
 
 
 class ContractsContract(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -105,7 +105,7 @@ class ContractsContract(models.Model):
 
 
 class ContractsContractdebt(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -122,7 +122,7 @@ class ContractsContractdebt(models.Model):
 
 
 class ContractsContractdocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -141,7 +141,7 @@ class ContractsContractdocument(models.Model):
 
 
 class ContractsContractuserrole(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -155,7 +155,7 @@ class ContractsContractuserrole(models.Model):
 
 
 class ContractsNegativecovenant(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -169,7 +169,7 @@ class ContractsNegativecovenant(models.Model):
 
 
 class ContractsNegativecovenantdocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -187,7 +187,7 @@ class ContractsNegativecovenantdocument(models.Model):
 
 
 class ContractsPaymentreceived(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -203,7 +203,7 @@ class ContractsPaymentreceived(models.Model):
 
 
 class ContractsSuspensionevent(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -218,7 +218,7 @@ class ContractsSuspensionevent(models.Model):
 
 
 class ContractsSuspensioneventdocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -236,7 +236,7 @@ class ContractsSuspensioneventdocument(models.Model):
 
 
 class ContractsSuspensioneventupdate(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -256,7 +256,7 @@ class ContractsSuspensioneventupdate(models.Model):
 
 
 class ContractsSuspensioneventupdatedocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -275,7 +275,7 @@ class ContractsSuspensioneventupdatedocument(models.Model):
 
 
 class Conversation(models.Model):
-    id = models.UUIDField()
+    id = models.UUIDField(primary_key=True)
     title = models.CharField(max_length=255)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
@@ -289,7 +289,7 @@ class Conversation(models.Model):
 
 
 class DefenderAccessattempt(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     user_agent = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     username = models.CharField(max_length=255, blank=True, null=True)
@@ -304,7 +304,7 @@ class DefenderAccessattempt(models.Model):
 
 
 class DjangoAdminLog(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     action_time = models.DateTimeField()
     object_id = models.TextField(blank=True, null=True)
     object_repr = models.CharField(max_length=200)
@@ -319,7 +319,7 @@ class DjangoAdminLog(models.Model):
 
 
 class DjangoCeleryBeatClockedschedule(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     clocked_time = models.DateTimeField()
 
     class Meta:
@@ -328,7 +328,7 @@ class DjangoCeleryBeatClockedschedule(models.Model):
 
 
 class DjangoCeleryBeatCrontabschedule(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     minute = models.CharField(max_length=240)
     hour = models.CharField(max_length=96)
     day_of_week = models.CharField(max_length=64)
@@ -342,7 +342,7 @@ class DjangoCeleryBeatCrontabschedule(models.Model):
 
 
 class DjangoCeleryBeatIntervalschedule(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     every = models.IntegerField()
     period = models.CharField(max_length=24)
 
@@ -352,7 +352,7 @@ class DjangoCeleryBeatIntervalschedule(models.Model):
 
 
 class DjangoCeleryBeatPeriodictask(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=200)
     task = models.CharField(max_length=200)
     args = models.TextField()
@@ -391,7 +391,7 @@ class DjangoCeleryBeatPeriodictasks(models.Model):
 
 
 class DjangoCeleryBeatSolarschedule(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     event = models.CharField(max_length=24)
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
@@ -402,7 +402,7 @@ class DjangoCeleryBeatSolarschedule(models.Model):
 
 
 class DjangoContentType(models.Model):
-    id = models.AutoField()
+    id = models.AutoField(primary_key=True)
     app_label = models.CharField(max_length=100)
     model = models.CharField(max_length=100)
 
@@ -412,7 +412,7 @@ class DjangoContentType(models.Model):
 
 
 class DjangoMigrations(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     app = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
     applied = models.DateTimeField()
@@ -433,7 +433,7 @@ class DjangoSession(models.Model):
 
 
 class EntitiesLawfirm(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -445,7 +445,7 @@ class EntitiesLawfirm(models.Model):
 
 
 class EntitiesOrganisation(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -458,7 +458,7 @@ class EntitiesOrganisation(models.Model):
 
 
 class ExtensionsScheduleextensiondocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -477,7 +477,7 @@ class ExtensionsScheduleextensiondocument(models.Model):
 
 
 class ExtensionsScheduleextensionhistory(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -510,7 +510,7 @@ class ExtensionsScheduleextensionhistory(models.Model):
 
 
 class FinancialMilestones(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -525,7 +525,7 @@ class FinancialMilestones(models.Model):
 
 
 class MastersContractpermission(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -538,7 +538,7 @@ class MastersContractpermission(models.Model):
 
 
 class MastersContractroletype(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -552,7 +552,7 @@ class MastersContractroletype(models.Model):
 
 
 class MastersContractroletypePermissions(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     contractroletype_id = models.BigIntegerField()
     contractpermission_id = models.BigIntegerField()
 
@@ -562,7 +562,7 @@ class MastersContractroletypePermissions(models.Model):
 
 
 class MastersContracttype(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -575,7 +575,7 @@ class MastersContracttype(models.Model):
 
 
 class MastersDocumenttype(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -603,7 +603,7 @@ class MastersGroupprofile(models.Model):
 
 
 class MastersTasktype(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -616,7 +616,7 @@ class MastersTasktype(models.Model):
 
 
 class ObligationsEscalationmatrix(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -633,7 +633,7 @@ class ObligationsEscalationmatrix(models.Model):
 
 
 class ObligationsObligation(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -663,7 +663,7 @@ class ObligationsObligation(models.Model):
 
 
 class ObligationsObligationtimelineextension(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -689,7 +689,7 @@ class ObligationsObligationtimelineextension(models.Model):
 
 
 class ObligationsTimelineextensiondocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -708,7 +708,7 @@ class ObligationsTimelineextensiondocument(models.Model):
 
 
 class ObligationsTimelineextensionimpactedtask(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -722,7 +722,7 @@ class ObligationsTimelineextensionimpactedtask(models.Model):
 
 
 class PaymentActivities(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -740,7 +740,7 @@ class PaymentActivities(models.Model):
 
 
 class PaymentSchedules(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -759,7 +759,7 @@ class PaymentSchedules(models.Model):
 
 
 class TasksContracttask(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -782,7 +782,7 @@ class TasksContracttask(models.Model):
 
 
 class TasksTaskcommunication(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -797,7 +797,7 @@ class TasksTaskcommunication(models.Model):
 
 
 class TasksTaskcommunicationdocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -816,7 +816,7 @@ class TasksTaskcommunicationdocument(models.Model):
 
 
 class TasksTaskdocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -835,7 +835,7 @@ class TasksTaskdocument(models.Model):
 
 
 class TasksTaskfieldchange(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -850,7 +850,7 @@ class TasksTaskfieldchange(models.Model):
 
 
 class TasksTaskupdate(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -870,7 +870,7 @@ class TasksTaskupdate(models.Model):
 
 
 class TasksTaskupdatedocument(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -890,7 +890,7 @@ class TasksTaskupdatedocument(models.Model):
 
 
 class TokenBlacklistBlacklistedtoken(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     blacklisted_at = models.DateTimeField()
     token_id = models.BigIntegerField()
 
@@ -900,7 +900,7 @@ class TokenBlacklistBlacklistedtoken(models.Model):
 
 
 class TokenBlacklistOutstandingtoken(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     token = models.TextField()
     created_at = models.DateTimeField(blank=True, null=True)
     expires_at = models.DateTimeField()
@@ -913,7 +913,7 @@ class TokenBlacklistOutstandingtoken(models.Model):
 
 
 class UsersOrganisationaccess(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -927,7 +927,7 @@ class UsersOrganisationaccess(models.Model):
 
 
 class UsersUser(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     password = models.CharField(max_length=128)
     last_login = models.DateTimeField(blank=True, null=True)
     is_superuser = models.BooleanField()
@@ -946,7 +946,7 @@ class UsersUser(models.Model):
 
 
 class UsersUserGroups(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     user_id = models.BigIntegerField()
     group_id = models.IntegerField()
 
@@ -956,7 +956,7 @@ class UsersUserGroups(models.Model):
 
 
 class UsersUserUserPermissions(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     user_id = models.BigIntegerField()
     permission_id = models.IntegerField()
 
@@ -966,7 +966,7 @@ class UsersUserUserPermissions(models.Model):
 
 
 class UsersUserlawfirmaccess(models.Model):
-    id = models.BigAutoField()
+    id = models.BigAutoField(primary_key=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -977,3 +977,4 @@ class UsersUserlawfirmaccess(models.Model):
     class Meta:
         managed = False
         db_table = 'users_userlawfirmaccess'
+
