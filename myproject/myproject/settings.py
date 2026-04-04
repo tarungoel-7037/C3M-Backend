@@ -120,7 +120,7 @@ STATIC_URL = 'static/'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'crm_db',
+        'NAME': 'c3m_db',
         'USER': 'root',
         'PASSWORD': 'root',
         'HOST': 'localhost',
