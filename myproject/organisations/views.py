@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Organisation
+from myproject.constants import SuccessCode, SuccessMessage
 
 ALLOWED_SORT_FIELDS = {'created_at', 'name'}
 
@@ -50,8 +51,8 @@ class OrganisationListView(APIView):
 
         return Response({
             'status': True,
-            'message_code': 1000,
-            'message': 'Operation completed successfully',
+            'message_code': SuccessCode.DEFAULT,
+            'message': SuccessMessage.DEFAULT,
             'data': {
                 'organisations': serializer.data,
                 'pagination': {

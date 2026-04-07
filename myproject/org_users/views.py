@@ -1,0 +1,167 @@
+from django.contrib.auth.models import Group, User
+
+from accounts.models import Organisation, UserOrganisationAccess
+from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
+from myproject.utils import ApiView, _error, _parse_json, _success
+from org_users.serializers import (
+    AddOrganisationUserSerializer,
+    OrganisationUserSerializer,
+    UpdateOrganisationUserSerializer,
+)
+
+
+def _paginate(request, qs):
+    """Manual pagination using request.GET — compatible with plain Django views."""
+    try:
+        page = max(1, int(request.GET.get('page', 1)))
+        limit = min(max(1, int(request.GET.get('limit', 10))), 100)
+    except ValueError:
+        page, limit = 1, 10
+
+    total = qs.count()
+    offset = (page - 1) * limit
+    items = qs[offset:offset + limit]
+
+    base = request.build_absolute_uri(request.path)
+    next_url = f'{base}?page={page + 1}&limit={limit}' if offset + limit < total else None
+    prev_url = f'{base}?page={page - 1}&limit={limit}' if page > 1 else None
+
+    return items, {'total': total, 'next': next_url, 'previous': prev_url}
+
+
+class OrganisationUsersView(ApiView):
+    login_required = True
+
+    def get(self, request, organisation_id):
+        try:
+            organisation = Organisation.objects.get(id=organisation_id)
+        except Organisation.DoesNotExist:
+            return _error(ErrorMessage.ORGANISATION_NOT_FOUND, message_code=ErrorCode.ORGANISATION_NOT_FOUND, status=404)
+
+        user_ids = UserOrganisationAccess.objects.filter(
+            organisation=organisation
+        ).values_list('user_id', flat=True)
+
+        users = User.objects.filter(id__in=user_ids).select_related('profile').prefetch_related(
+            'law_firm_accesses__law_firm',
+            'law_firm_accesses__group',
+            'organisation_accesses__organisation__law_firm',
+        ).order_by('-profile__created_at')
+
+        page_qs, pagination = _paginate(request, users)
+        serializer = OrganisationUserSerializer(page_qs, many=True)
+
+        return _success(SuccessMessage.USERS_LISTED, message_code=SuccessCode.USERS_LISTED, data={
+            'users': serializer.data,
+            'pagination': pagination,
+        })
+
+
+class AddOrganisationUserView(ApiView):
+    login_required = True
+
+    def post(self, request):
+        data, error_response = _parse_json(request)
+        if error_response:
+            return error_response
+
+        serializer = AddOrganisationUserSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+
+        vd = serializer.validated_data
+        organisation = Organisation.objects.get(id=vd['organisation_id'])
+        group = Group.objects.get(id=vd['group_id'])
+    
+        # Generate a unique username from email
+        base_username = vd['email'].split('@')[0]
+        username = base_username
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f'{base_username}{counter}'
+            counter += 1
+
+        user = User.objects.create_user(
+            username=username,
+            email=vd['email'],
+            first_name=vd.get('first_name', ''),
+            last_name=vd.get('last_name', ''),
+        )
+
+        UserOrganisationAccess.objects.create(
+            user=user,
+            organisation=organisation,
+            law_firm=organisation.law_firm,
+            group=group,
+        )
+
+        output = OrganisationUserSerializer(user, context={'organisation_id': organisation.id})
+        return _success(SuccessMessage.USER_ADDED_TO_ORG, data=output.data, message_code=SuccessCode.USER_ADDED_TO_ORG, status=201)
+
+
+class UpdateOrganisationUserView(ApiView):
+    login_required = True
+
+    def patch(self, request, id):
+        data, error_response = _parse_json(request)
+        if error_response:
+            return error_response
+
+        try:
+            user = User.objects.get(id=id)
+        except User.DoesNotExist:
+            return _error(ErrorMessage.USER_NOT_FOUND, message_code=ErrorCode.USER_NOT_FOUND, status=404)
+
+        serializer = UpdateOrganisationUserSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+
+        vd = serializer.validated_data
+        if 'first_name' in vd:
+            user.first_name = vd['first_name']
+        if 'last_name' in vd:
+            user.last_name = vd['last_name']
+        user.save()
+
+        if 'group_id' in vd and 'organisation_id' in vd:
+            group = Group.objects.get(id=vd['group_id'])
+            access = UserOrganisationAccess.objects.filter(
+                user=user, organisation_id=vd['organisation_id']
+            ).first()
+            if access:
+                access.group = group
+                access.save()
+
+        return _success(SuccessMessage.USER_UPDATED, message_code=SuccessCode.USER_UPDATED)
+
+
+class DeleteOrganisationUserView(ApiView):
+    login_required = True
+
+    def delete(self, request, id):
+        try:
+            user = User.objects.get(id=id)
+        except User.DoesNotExist:
+            return _error(ErrorMessage.USER_NOT_FOUND, message_code=ErrorCode.USER_NOT_FOUND, status=404)
+
+        organisation_id = request.GET.get('organisation_id')
+        if organisation_id:
+            UserOrganisationAccess.objects.filter(
+                user=user, organisation_id=organisation_id
+            ).delete()
+
+        return _success(SuccessMessage.USER_REMOVED, message_code=SuccessCode.USER_REMOVED)
+
+
+class UserDetailView(ApiView):
+    login_required = True
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return _error(ErrorMessage.USER_NOT_FOUND, message_code=ErrorCode.USER_NOT_FOUND, status=404)
+
+        organisation_id = request.GET.get('organisation_id')
+        serializer = OrganisationUserSerializer(user, context={'organisation_id': organisation_id})
+        return _success(SuccessMessage.USER_RETRIEVED, message_code=SuccessCode.USER_RETRIEVED, data=serializer.data)

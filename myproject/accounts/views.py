@@ -1,78 +1,21 @@
-import json
-
 from django.contrib.auth import authenticate, update_session_auth_hash
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
-from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from accounts.serializers import (
+    ChangePasswordSerializer,
+    LoginSerializer,
+    SignupSerializer,
+    UserProfileOutputSerializer,
+    UserSerializer,
+)
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
-
-
-def _success(message, data=None, message_code=SuccessCode.DEFAULT, status=200):
-    return JsonResponse({
-        'status': True,
-        'message_code': message_code,
-        'message': message,
-        'data': data or {},
-        'errors': {},
-    }, status=status)
-
-
-def _error(message, message_code=ErrorCode.DEFAULT, errors=None, status=400):
-    return JsonResponse({
-        'status': False,
-        'message_code': message_code,
-        'message': message,
-        'data': {},
-        'errors': errors or {},
-    }, status=status)
-
-
-def _parse_json(request):
-    try:
-        body = json.loads(request.body or '{}')
-        return body.get('data', body), None
-    except json.JSONDecodeError:
-        return None, _error(ErrorMessage.INVALID_JSON, message_code=ErrorCode.INVALID_JSON)
-
-
-def _user_payload(user):
-    return {
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-    }
-
-
-def _get_user_from_token(request):
-    token = request.COOKIES.get('access_token')
-    if not token:
-        return None
-    try:
-        validated = AccessToken(token)
-        return User.objects.get(id=validated['user_id'])
-    except Exception:
-        return None
-
-
-class ApiView(View):
-    http_method_names = ['get', 'post']
-
-    def dispatch(self, request, *args, **kwargs):
-        if getattr(self, 'login_required', False):
-            user = _get_user_from_token(request)
-            if user is None:
-                return _error(ErrorMessage.AUTH_REQUIRED, message_code=ErrorCode.AUTH_REQUIRED, status=401)
-            request.user = user
-        return super().dispatch(request, *args, **kwargs)
+from myproject.utils import ApiView, _error, _parse_json, _success
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -82,41 +25,21 @@ class SignupView(ApiView):
         if error_response:
             return error_response
 
-        username = (data.get('username') or '').strip()
-        email = (data.get('email') or '').strip()
-        password = data.get('password') or ''
-        confirm_password = data.get('confirm_password') or ''
-        first_name = (data.get('first_name') or '').strip()
-        last_name = (data.get('last_name') or '').strip()
+        serializer = SignupSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
 
-        if not username or not email or not password:
-            return _error('username, email, and password are required.', message_code=ErrorCode.MISSING_FIELDS)
-
-        if password != confirm_password:
-            return _error(ErrorMessage.PASSWORD_MISMATCH, message_code=ErrorCode.PASSWORD_MISMATCH)
-
-        if User.objects.filter(username=username).exists():
-            return _error(ErrorMessage.USERNAME_EXISTS, message_code=ErrorCode.USERNAME_EXISTS)
-
-        if User.objects.filter(email=email).exists():
-            return _error(ErrorMessage.EMAIL_EXISTS, message_code=ErrorCode.EMAIL_EXISTS)
-
+        vd = serializer.validated_data
         user = User(
-            username=username,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
+            username=vd['username'],
+            email=vd['email'],
+            first_name=vd.get('first_name', ''),
+            last_name=vd.get('last_name', ''),
         )
-
-        try:
-            validate_password(password, user=user)
-        except ValidationError as exc:
-            return _error(ErrorMessage.PASSWORD_INVALID, message_code=ErrorCode.PASSWORD_INVALID, errors={'password': list(exc.messages)})
-
-        user.set_password(password)
+        user.set_password(vd['password'])
         user.save()
 
-        return _success(SuccessMessage.USER_CREATED, data=_user_payload(user), message_code=SuccessCode.USER_CREATED, status=201)
+        return _success(SuccessMessage.USER_CREATED, data=UserSerializer(user).data, message_code=SuccessCode.USER_CREATED, status=201)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -126,11 +49,12 @@ class LoginView(ApiView):
         if error_response:
             return error_response
 
-        email = (data.get('email') or '').strip()
-        password = data.get('password') or ''
+        serializer = LoginSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
 
-        if not email or not password:
-            return _error('email and password are required.', message_code=ErrorCode.MISSING_FIELDS)
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
 
         try:
             user = User.objects.get(email=email)
@@ -143,7 +67,7 @@ class LoginView(ApiView):
 
         get_token(request)
         refresh = RefreshToken.for_user(user)
-        response = _success(SuccessMessage.LOGIN, data=_user_payload(user), message_code=SuccessCode.LOGIN)
+        response = _success(SuccessMessage.LOGIN, data=UserSerializer(user).data, message_code=SuccessCode.LOGIN)
         response.set_cookie('access_token', str(refresh.access_token), httponly=True, samesite='Lax')
         response.set_cookie('refresh_token', str(refresh), httponly=True, samesite='Lax')
         response.delete_cookie('sessionid')
@@ -222,7 +146,7 @@ class ProfileView(ApiView):
                 },
             })
 
-        return _success(SuccessMessage.PROFILE_RETRIEVED, message_code=SuccessCode.PROFILE_RETRIEVED, data={
+        profile_data = {
             'id': user.id,
             'full_name': f'{user.first_name} {user.last_name}'.strip() or user.username,
             'email': user.email,
@@ -235,7 +159,10 @@ class ProfileView(ApiView):
             'permissions': sorted(all_permissions),
             'created_at': profile.created_at.isoformat() if profile else None,
             'updated_at': profile.updated_at.isoformat() if profile else None,
-        })
+        }
+
+        serializer = UserProfileOutputSerializer(profile_data)
+        return _success(SuccessMessage.PROFILE_RETRIEVED, message_code=SuccessCode.PROFILE_RETRIEVED, data=serializer.data)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -247,11 +174,12 @@ class ChangePasswordView(ApiView):
         if error_response:
             return error_response
 
-        old_password = data.get('old_password') or ''
-        new_password = data.get('new_password') or ''
+        serializer = ChangePasswordSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
 
-        if not old_password or not new_password:
-            return _error('old_password and new_password are required.', message_code=ErrorCode.MISSING_FIELDS)
+        old_password = serializer.validated_data['old_password']
+        new_password = serializer.validated_data['new_password']
 
         if not request.user.check_password(old_password):
             return _error(ErrorMessage.WRONG_OLD_PASSWORD, message_code=ErrorCode.WRONG_OLD_PASSWORD)
