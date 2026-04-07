@@ -12,6 +12,7 @@ class SuccessCode:
     USER_REMOVED        = 2006
     USERS_LISTED        = 1400
     USER_RETRIEVED      = 2008
+    CONTRACT_CREATED    = 2009
 
 
 class SuccessMessage:
@@ -26,6 +27,7 @@ class SuccessMessage:
     USER_REMOVED        = 'User removed from organisation successfully.'
     USERS_LISTED        = 'Users retrieved successfully'
     USER_RETRIEVED      = 'User retrieved successfully.'
+    CONTRACT_CREATED    = 'Contract created successfully.'
 
 
 # ── Error message codes (3xxx) ────────────────────────────────────────────────

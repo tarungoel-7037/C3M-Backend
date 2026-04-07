@@ -7,4 +7,5 @@ urlpatterns = [
     path('api/', include('law_firms.urls')),
     path('api/', include('organisations.urls')),
     path('api/', include('org_users.urls')),
+    path('api/', include('contracts.urls')),
 ]
