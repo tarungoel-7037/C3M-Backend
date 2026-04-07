@@ -29,6 +29,7 @@ class LawFirm(models.Model):
 
 
 class Organisation(models.Model):
+    law_firm = models.ForeignKey(LawFirm, on_delete=models.CASCADE, related_name='organisations', default=1)
     name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -25,38 +25,7 @@ class AuditAuditlog(models.Model):
     performed_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'audit_auditlog'
-
-
-class AuthGroup(models.Model):
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=150)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_group'
-
-
-class AuthGroupPermissions(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    group_id = models.IntegerField()
-    permission_id = models.IntegerField()
-
-    class Meta:
-        managed = False
-        db_table = 'auth_group_permissions'
-
-
-class AuthPermission(models.Model):
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255)
-    content_type_id = models.IntegerField()
-    codename = models.CharField(max_length=100)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_permission'
 
 
 class ChatMessage(models.Model):
@@ -100,7 +69,6 @@ class ContractsContract(models.Model):
     organisation_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'contracts_contract'
 
 
@@ -117,7 +85,6 @@ class ContractsContractdebt(models.Model):
     contract_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'contracts_contractdebt'
 
 
@@ -136,7 +103,6 @@ class ContractsContractdocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'contracts_contractdocument'
 
 
@@ -150,7 +116,6 @@ class ContractsContractuserrole(models.Model):
     user_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'contracts_contractuserrole'
 
 
@@ -164,7 +129,6 @@ class ContractsNegativecovenant(models.Model):
     contract_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'contracts_negativecovenant'
 
 
@@ -182,7 +146,6 @@ class ContractsNegativecovenantdocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'contracts_negativecovenantdocument'
 
 
@@ -198,7 +161,6 @@ class ContractsPaymentreceived(models.Model):
     financial_milestone_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'contracts_paymentreceived'
 
 
@@ -213,7 +175,6 @@ class ContractsSuspensionevent(models.Model):
     contract_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'contracts_suspensionevent'
 
 
@@ -231,7 +192,6 @@ class ContractsSuspensioneventdocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'contracts_suspensioneventdocument'
 
 
@@ -251,7 +211,6 @@ class ContractsSuspensioneventupdate(models.Model):
     user_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'contracts_suspensioneventupdate'
 
 
@@ -270,7 +229,6 @@ class ContractsSuspensioneventupdatedocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'contracts_suspensioneventupdatedocument'
 
 
@@ -284,7 +242,6 @@ class Conversation(models.Model):
     user_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'conversation'
 
 
@@ -299,137 +256,7 @@ class DefenderAccessattempt(models.Model):
     login_valid = models.BooleanField()
 
     class Meta:
-        managed = False
         db_table = 'defender_accessattempt'
-
-
-class DjangoAdminLog(models.Model):
-    id = models.AutoField(primary_key=True)
-    action_time = models.DateTimeField()
-    object_id = models.TextField(blank=True, null=True)
-    object_repr = models.CharField(max_length=200)
-    action_flag = models.SmallIntegerField()
-    change_message = models.TextField()
-    content_type_id = models.IntegerField(blank=True, null=True)
-    user_id = models.BigIntegerField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_admin_log'
-
-
-class DjangoCeleryBeatClockedschedule(models.Model):
-    id = models.AutoField(primary_key=True)
-    clocked_time = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_celery_beat_clockedschedule'
-
-
-class DjangoCeleryBeatCrontabschedule(models.Model):
-    id = models.AutoField(primary_key=True)
-    minute = models.CharField(max_length=240)
-    hour = models.CharField(max_length=96)
-    day_of_week = models.CharField(max_length=64)
-    day_of_month = models.CharField(max_length=124)
-    month_of_year = models.CharField(max_length=64)
-    timezone = models.CharField(max_length=63)
-
-    class Meta:
-        managed = False
-        db_table = 'django_celery_beat_crontabschedule'
-
-
-class DjangoCeleryBeatIntervalschedule(models.Model):
-    id = models.AutoField(primary_key=True)
-    every = models.IntegerField()
-    period = models.CharField(max_length=24)
-
-    class Meta:
-        managed = False
-        db_table = 'django_celery_beat_intervalschedule'
-
-
-class DjangoCeleryBeatPeriodictask(models.Model):
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=200)
-    task = models.CharField(max_length=200)
-    args = models.TextField()
-    kwargs = models.TextField()
-    queue = models.CharField(max_length=200, blank=True, null=True)
-    exchange = models.CharField(max_length=200, blank=True, null=True)
-    routing_key = models.CharField(max_length=200, blank=True, null=True)
-    expires = models.DateTimeField(blank=True, null=True)
-    enabled = models.BooleanField()
-    last_run_at = models.DateTimeField(blank=True, null=True)
-    total_run_count = models.IntegerField()
-    date_changed = models.DateTimeField()
-    description = models.TextField()
-    crontab_id = models.IntegerField(blank=True, null=True)
-    interval_id = models.IntegerField(blank=True, null=True)
-    solar_id = models.IntegerField(blank=True, null=True)
-    one_off = models.BooleanField()
-    start_time = models.DateTimeField(blank=True, null=True)
-    priority = models.IntegerField(blank=True, null=True)
-    headers = models.TextField()
-    clocked_id = models.IntegerField(blank=True, null=True)
-    expire_seconds = models.IntegerField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'django_celery_beat_periodictask'
-
-
-class DjangoCeleryBeatPeriodictasks(models.Model):
-    ident = models.SmallIntegerField()
-    last_update = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_celery_beat_periodictasks'
-
-
-class DjangoCeleryBeatSolarschedule(models.Model):
-    id = models.AutoField(primary_key=True)
-    event = models.CharField(max_length=24)
-    latitude = models.DecimalField(max_digits=9, decimal_places=6)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6)
-
-    class Meta:
-        managed = False
-        db_table = 'django_celery_beat_solarschedule'
-
-
-class DjangoContentType(models.Model):
-    id = models.AutoField(primary_key=True)
-    app_label = models.CharField(max_length=100)
-    model = models.CharField(max_length=100)
-
-    class Meta:
-        managed = False
-        db_table = 'django_content_type'
-
-
-class DjangoMigrations(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    app = models.CharField(max_length=255)
-    name = models.CharField(max_length=255)
-    applied = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_migrations'
-
-
-class DjangoSession(models.Model):
-    session_key = models.CharField(max_length=40)
-    session_data = models.TextField()
-    expire_date = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_session'
 
 
 class EntitiesLawfirm(models.Model):
@@ -453,7 +280,6 @@ class EntitiesOrganisation(models.Model):
     is_active = models.BooleanField()
 
     class Meta:
-        managed = False
         db_table = 'entities_organisation'
 
 
@@ -472,7 +298,6 @@ class ExtensionsScheduleextensiondocument(models.Model):
     schedule_extension_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'extensions_scheduleextensiondocument'
 
 
@@ -505,7 +330,6 @@ class ExtensionsScheduleextensionhistory(models.Model):
     contract_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'extensions_scheduleextensionhistory'
 
 
@@ -520,7 +344,6 @@ class FinancialMilestones(models.Model):
     contract_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'financial_milestones'
 
 
@@ -533,7 +356,6 @@ class MastersContractpermission(models.Model):
     description = models.TextField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'masters_contractpermission'
 
 
@@ -547,7 +369,6 @@ class MastersContractroletype(models.Model):
     display_name = models.CharField(max_length=255)
 
     class Meta:
-        managed = False
         db_table = 'masters_contractroletype'
 
 
@@ -557,7 +378,6 @@ class MastersContractroletypePermissions(models.Model):
     contractpermission_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'masters_contractroletype_permissions'
 
 
@@ -570,7 +390,6 @@ class MastersContracttype(models.Model):
     description = models.TextField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'masters_contracttype'
 
 
@@ -584,7 +403,6 @@ class MastersDocumenttype(models.Model):
     category = models.CharField(max_length=100)
 
     class Meta:
-        managed = False
         db_table = 'masters_documenttype'
 
 
@@ -598,7 +416,6 @@ class MastersGroupprofile(models.Model):
     description = models.TextField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'masters_groupprofile'
 
 
@@ -611,7 +428,6 @@ class MastersTasktype(models.Model):
     description = models.TextField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'masters_tasktype'
 
 
@@ -628,7 +444,6 @@ class ObligationsEscalationmatrix(models.Model):
     obligation_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'obligations_escalationmatrix'
 
 
@@ -658,7 +473,6 @@ class ObligationsObligation(models.Model):
     risk_category = models.CharField(max_length=10, blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'obligations_obligation'
 
 
@@ -684,7 +498,6 @@ class ObligationsObligationtimelineextension(models.Model):
     requested_by_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'obligations_obligationtimelineextension'
 
 
@@ -703,7 +516,6 @@ class ObligationsTimelineextensiondocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'obligations_timelineextensiondocument'
 
 
@@ -717,7 +529,6 @@ class ObligationsTimelineextensionimpactedtask(models.Model):
     timeline_extension_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'obligations_timelineextensionimpactedtask'
 
 
@@ -735,7 +546,6 @@ class PaymentActivities(models.Model):
     financial_milestone_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'payment_activities'
 
 
@@ -754,7 +564,6 @@ class PaymentSchedules(models.Model):
     financial_milestone_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'payment_schedules'
 
 
@@ -777,7 +586,6 @@ class TasksContracttask(models.Model):
     closing_details = models.TextField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'tasks_contracttask'
 
 
@@ -792,7 +600,6 @@ class TasksTaskcommunication(models.Model):
     user_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'tasks_taskcommunication'
 
 
@@ -811,7 +618,6 @@ class TasksTaskcommunicationdocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'tasks_taskcommunicationdocument'
 
 
@@ -830,7 +636,6 @@ class TasksTaskdocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'tasks_taskdocument'
 
 
@@ -845,7 +650,6 @@ class TasksTaskfieldchange(models.Model):
     task_update_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'tasks_taskfieldchange'
 
 
@@ -865,7 +669,6 @@ class TasksTaskupdate(models.Model):
     user_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'tasks_taskupdate'
 
 
@@ -885,31 +688,7 @@ class TasksTaskupdatedocument(models.Model):
     uploaded_by_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'tasks_taskupdatedocument'
-
-
-class TokenBlacklistBlacklistedtoken(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    blacklisted_at = models.DateTimeField()
-    token_id = models.BigIntegerField()
-
-    class Meta:
-        managed = False
-        db_table = 'token_blacklist_blacklistedtoken'
-
-
-class TokenBlacklistOutstandingtoken(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    token = models.TextField()
-    created_at = models.DateTimeField(blank=True, null=True)
-    expires_at = models.DateTimeField()
-    user_id = models.BigIntegerField(blank=True, null=True)
-    jti = models.CharField(max_length=255)
-
-    class Meta:
-        managed = False
-        db_table = 'token_blacklist_outstandingtoken'
 
 
 class UsersOrganisationaccess(models.Model):
@@ -941,7 +720,6 @@ class UsersUser(models.Model):
     is_active = models.BooleanField()
 
     class Meta:
-        managed = False
         db_table = 'users_user'
 
 
@@ -951,7 +729,6 @@ class UsersUserGroups(models.Model):
     group_id = models.IntegerField()
 
     class Meta:
-        managed = False
         db_table = 'users_user_groups'
 
 
@@ -961,7 +738,6 @@ class UsersUserUserPermissions(models.Model):
     permission_id = models.IntegerField()
 
     class Meta:
-        managed = False
         db_table = 'users_user_user_permissions'
 
 
@@ -975,6 +751,5 @@ class UsersUserlawfirmaccess(models.Model):
     user_id = models.BigIntegerField()
 
     class Meta:
-        managed = False
         db_table = 'users_userlawfirmaccess'
 
