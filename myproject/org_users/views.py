@@ -1,8 +1,9 @@
 from django.contrib.auth.models import Group, User
+from rest_framework.pagination import PageNumberPagination
 
-from accounts.models import Organisation, UserOrganisationAccess
+from accounts.models import Organisation, UserOrganisationAccess, UserProfile
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
-from myproject.utils import ApiView, _error, _parse_json, _success
+from myproject.utils import ApiView, _error, _success
 from org_users.serializers import (
     AddOrganisationUserSerializer,
     OrganisationUserSerializer,
@@ -10,23 +11,10 @@ from org_users.serializers import (
 )
 
 
-def _paginate(request, qs):
-    """Manual pagination using request.GET — compatible with plain Django views."""
-    try:
-        page = max(1, int(request.GET.get('page', 1)))
-        limit = min(max(1, int(request.GET.get('limit', 10))), 100)
-    except ValueError:
-        page, limit = 1, 10
-
-    total = qs.count()
-    offset = (page - 1) * limit
-    items = qs[offset:offset + limit]
-
-    base = request.build_absolute_uri(request.path)
-    next_url = f'{base}?page={page + 1}&limit={limit}' if offset + limit < total else None
-    prev_url = f'{base}?page={page - 1}&limit={limit}' if page > 1 else None
-
-    return items, {'total': total, 'next': next_url, 'previous': prev_url}
+class OrganisationUserPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'limit'
+    max_page_size = 100
 
 
 class OrganisationUsersView(ApiView):
@@ -48,12 +36,17 @@ class OrganisationUsersView(ApiView):
             'organisation_accesses__organisation__law_firm',
         ).order_by('-profile__created_at')
 
-        page_qs, pagination = _paginate(request, users)
-        serializer = OrganisationUserSerializer(page_qs, many=True)
+        paginator = OrganisationUserPagination()
+        page = paginator.paginate_queryset(users, request)
+        serializer = OrganisationUserSerializer(page, many=True)
 
         return _success(SuccessMessage.USERS_LISTED, message_code=SuccessCode.USERS_LISTED, data={
             'users': serializer.data,
-            'pagination': pagination,
+            'pagination': {
+                'total': paginator.page.paginator.count,
+                'next': paginator.get_next_link(),
+                'previous': paginator.get_previous_link(),
+            },
         })
 
 
@@ -61,10 +54,7 @@ class AddOrganisationUserView(ApiView):
     login_required = True
 
     def post(self, request):
-        data, error_response = _parse_json(request)
-        if error_response:
-            return error_response
-
+        data = request.data.get('data', request.data)
         serializer = AddOrganisationUserSerializer(data=data)
         if not serializer.is_valid():
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
@@ -72,8 +62,7 @@ class AddOrganisationUserView(ApiView):
         vd = serializer.validated_data
         organisation = Organisation.objects.get(id=vd['organisation_id'])
         group = Group.objects.get(id=vd['group_id'])
-    
-        # Generate a unique username from email
+
         base_username = vd['email'].split('@')[0]
         username = base_username
         counter = 1
@@ -94,6 +83,7 @@ class AddOrganisationUserView(ApiView):
             law_firm=organisation.law_firm,
             group=group,
         )
+        UserProfile.objects.create(user=user)
 
         output = OrganisationUserSerializer(user, context={'organisation_id': organisation.id})
         return _success(SuccessMessage.USER_ADDED_TO_ORG, data=output.data, message_code=SuccessCode.USER_ADDED_TO_ORG, status=201)
@@ -103,10 +93,7 @@ class UpdateOrganisationUserView(ApiView):
     login_required = True
 
     def patch(self, request, id):
-        data, error_response = _parse_json(request)
-        if error_response:
-            return error_response
-
+        data = request.data.get('data', request.data)
         try:
             user = User.objects.get(id=id)
         except User.DoesNotExist:
@@ -144,7 +131,7 @@ class DeleteOrganisationUserView(ApiView):
         except User.DoesNotExist:
             return _error(ErrorMessage.USER_NOT_FOUND, message_code=ErrorCode.USER_NOT_FOUND, status=404)
 
-        organisation_id = request.GET.get('organisation_id')
+        organisation_id = request.query_params.get('organisation_id')
         if organisation_id:
             UserOrganisationAccess.objects.filter(
                 user=user, organisation_id=organisation_id
@@ -162,6 +149,6 @@ class UserDetailView(ApiView):
         except User.DoesNotExist:
             return _error(ErrorMessage.USER_NOT_FOUND, message_code=ErrorCode.USER_NOT_FOUND, status=404)
 
-        organisation_id = request.GET.get('organisation_id')
+        organisation_id = request.query_params.get('organisation_id')
         serializer = OrganisationUserSerializer(user, context={'organisation_id': organisation_id})
         return _success(SuccessMessage.USER_RETRIEVED, message_code=SuccessCode.USER_RETRIEVED, data=serializer.data)

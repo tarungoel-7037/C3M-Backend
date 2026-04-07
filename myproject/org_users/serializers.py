@@ -58,7 +58,7 @@ class OrganisationUserSerializer(serializers.ModelSerializer):
         fields = ['id', 'full_name', 'email', 'contact_number', 'is_active', 'law_firms', 'organisations', 'created_at']
 
     def get_full_name(self, obj):
-        return f'{obj.first_name} {obj.last_name}'.strip() or obj.username
+        return ' '.join(filter(None, [obj.first_name, obj.last_name])) or obj.username
 
     def get_contact_number(self, obj):
         profile = getattr(obj, 'profile', None)

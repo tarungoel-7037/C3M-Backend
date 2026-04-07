@@ -1,10 +1,7 @@
-from django.contrib.auth import authenticate, update_session_auth_hash
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.middleware.csrf import get_token
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.serializers import (
@@ -15,16 +12,12 @@ from accounts.serializers import (
     UserSerializer,
 )
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
-from myproject.utils import ApiView, _error, _parse_json, _success
+from myproject.utils import ApiView, _error, _success
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class SignupView(ApiView):
     def post(self, request):
-        data, error_response = _parse_json(request)
-        if error_response:
-            return error_response
-
+        data = request.data.get('data', request.data)
         serializer = SignupSerializer(data=data)
         if not serializer.is_valid():
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
@@ -42,13 +35,9 @@ class SignupView(ApiView):
         return _success(SuccessMessage.USER_CREATED, data=UserSerializer(user).data, message_code=SuccessCode.USER_CREATED, status=201)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(ApiView):
     def post(self, request):
-        data, error_response = _parse_json(request)
-        if error_response:
-            return error_response
-
+        data = request.data.get('data', request.data)
         serializer = LoginSerializer(data=data)
         if not serializer.is_valid():
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
@@ -65,7 +54,6 @@ class LoginView(ApiView):
         if user is None:
             return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
 
-        get_token(request)
         refresh = RefreshToken.for_user(user)
         response = _success(SuccessMessage.LOGIN, data=UserSerializer(user).data, message_code=SuccessCode.LOGIN)
         response.set_cookie('access_token', str(refresh.access_token), httponly=True, samesite='Lax')
@@ -74,11 +62,10 @@ class LoginView(ApiView):
         return response
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(ApiView):
     login_required = True
 
-    def post(self, _request):
+    def post(self, request):
         response = _success(SuccessMessage.LOGOUT, message_code=SuccessCode.LOGOUT)
         response.delete_cookie('access_token')
         response.delete_cookie('refresh_token')
@@ -148,7 +135,7 @@ class ProfileView(ApiView):
 
         profile_data = {
             'id': user.id,
-            'full_name': f'{user.first_name} {user.last_name}'.strip() or user.username,
+            'full_name': ' '.join(filter(None, [user.first_name, user.last_name])) or user.username,
             'email': user.email,
             'contact_number': profile.contact_number if profile else None,
             'is_active': user.is_active,
@@ -165,15 +152,11 @@ class ProfileView(ApiView):
         return _success(SuccessMessage.PROFILE_RETRIEVED, message_code=SuccessCode.PROFILE_RETRIEVED, data=serializer.data)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class ChangePasswordView(ApiView):
     login_required = True
 
     def post(self, request):
-        data, error_response = _parse_json(request)
-        if error_response:
-            return error_response
-
+        data = request.data.get('data', request.data)
         serializer = ChangePasswordSerializer(data=data)
         if not serializer.is_valid():
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
@@ -191,6 +174,5 @@ class ChangePasswordView(ApiView):
 
         request.user.set_password(new_password)
         request.user.save()
-        update_session_auth_hash(request, request.user)
 
         return _success(SuccessMessage.PASSWORD_CHANGED, message_code=SuccessCode.PASSWORD_CHANGED)

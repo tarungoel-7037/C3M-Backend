@@ -1,11 +1,11 @@
 from django.db.models import Q
 from rest_framework import serializers
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Organisation
 from myproject.constants import SuccessCode, SuccessMessage
+from myproject.utils import _success
 
 ALLOWED_SORT_FIELDS = {'created_at', 'name'}
 
@@ -49,17 +49,11 @@ class OrganisationListView(APIView):
         page = paginator.paginate_queryset(qs, request)
         serializer = OrganisationSerializer(page, many=True)
 
-        return Response({
-            'status': True,
-            'message_code': SuccessCode.DEFAULT,
-            'message': SuccessMessage.DEFAULT,
-            'data': {
-                'organisations': serializer.data,
-                'pagination': {
-                    'total': paginator.page.paginator.count,
-                    'next': paginator.get_next_link(),
-                    'previous': paginator.get_previous_link(),
-                },
+        return _success(SuccessMessage.DEFAULT, message_code=SuccessCode.DEFAULT, data={
+            'organisations': serializer.data,
+            'pagination': {
+                'total': paginator.page.paginator.count,
+                'next': paginator.get_next_link(),
+                'previous': paginator.get_previous_link(),
             },
-            'errors': {},
         })

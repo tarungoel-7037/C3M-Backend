@@ -1,17 +1,16 @@
-import json
-
 from django.contrib.auth.models import User
-from django.http import JsonResponse
-from django.utils.decorators import method_decorator
-from django.views import View
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
 
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
 
 
 def _success(message, data=None, message_code=SuccessCode.DEFAULT, status=200):
-    return JsonResponse({
+    return Response({
         'status': True,
         'message_code': message_code,
         'message': message,
@@ -21,7 +20,7 @@ def _success(message, data=None, message_code=SuccessCode.DEFAULT, status=200):
 
 
 def _error(message, message_code=ErrorCode.DEFAULT, errors=None, status=400):
-    return JsonResponse({
+    return Response({
         'status': False,
         'message_code': message_code,
         'message': message,
@@ -30,33 +29,24 @@ def _error(message, message_code=ErrorCode.DEFAULT, errors=None, status=400):
     }, status=status)
 
 
-def _parse_json(request):
-    try:
-        body = json.loads(request.body or '{}')
-        return body.get('data', body), None
-    except json.JSONDecodeError:
-        return None, _error(ErrorMessage.INVALID_JSON, message_code=ErrorCode.INVALID_JSON)
+class CookieJWTAuthentication(BaseAuthentication):
+    def authenticate(self, request):
+        token = request.COOKIES.get('access_token')
+        if not token:
+            return None
+        try:
+            validated = AccessToken(token)
+            user = User.objects.get(id=validated['user_id'])
+            return (user, validated)
+        except Exception:
+            raise AuthenticationFailed(ErrorMessage.AUTH_REQUIRED)
 
 
-def _get_user_from_token(request):
-    token = request.COOKIES.get('access_token')
-    if not token:
-        return None
-    try:
-        validated = AccessToken(token)
-        return User.objects.get(id=validated['user_id'])
-    except Exception:
-        return None
+class ApiView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    login_required = False
 
-
-@method_decorator(csrf_exempt, name='dispatch')
-class ApiView(View):
-    http_method_names = ['get', 'post', 'patch', 'delete']
-
-    def dispatch(self, request, *args, **kwargs):
+    def get_permissions(self):
         if getattr(self, 'login_required', False):
-            user = _get_user_from_token(request)
-            if user is None:
-                return _error(ErrorMessage.AUTH_REQUIRED, message_code=ErrorCode.AUTH_REQUIRED, status=401)
-            request.user = user
-        return super().dispatch(request, *args, **kwargs)
+            return [IsAuthenticated()]
+        return []
