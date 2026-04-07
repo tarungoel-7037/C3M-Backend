@@ -1,12 +1,11 @@
 from django.contrib.auth.models import User
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
 
-from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
+from myproject.constants import ErrorCode, SuccessCode
 
 
 def _success(message, data=None, message_code=SuccessCode.DEFAULT, status=200):
@@ -39,7 +38,7 @@ class CookieJWTAuthentication(BaseAuthentication):
             user = User.objects.get(id=validated['user_id'])
             return (user, validated)
         except Exception:
-            raise AuthenticationFailed(ErrorMessage.AUTH_REQUIRED)
+            return None
 
 
 class ApiView(APIView):
