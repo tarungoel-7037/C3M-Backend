@@ -1,9 +1,10 @@
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from accounts.models import LawFirm, UserLawFirmAccess, UserProfile
 from accounts.serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
@@ -31,6 +32,15 @@ class SignupView(ApiView):
         )
         user.set_password(vd['password'])
         user.save()
+        UserProfile.objects.create(user=user)
+
+        group = Group.objects.get(name=vd['group'])
+        law_firm = LawFirm.objects.get(id=vd['law_firm_id'])
+        UserLawFirmAccess.objects.create(
+            user=user,
+            law_firm=law_firm,
+            group=group,
+        )
 
         return _success(SuccessMessage.USER_CREATED, data=UserSerializer(user).data, message_code=SuccessCode.USER_CREATED, status=201)
 

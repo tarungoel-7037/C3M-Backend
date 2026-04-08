@@ -1,6 +1,6 @@
 from django.utils import timezone
 
-from accounts.models import UserOrganisationAccess
+from accounts.models import UserLawFirmAccess, UserOrganisationAccess
 from contracts.serializers import ContractCreateSerializer
 from myapp.models import ContractsContract
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
@@ -77,13 +77,31 @@ class ContractCreateView(ApiView):
 
 class ContractListView(ApiView):
     login_required = True
-    
-    def get(self, request):
-        access = UserOrganisationAccess.objects.filter(user_id=request.user.id).first()
-        if not access:
-            return _success('Contracts retrieved successfully.', data={'contracts': []})
 
-        contracts = ContractsContract.objects.filter(organisation_id=access.organisation_id)
+    def get(self, request):
+        group_ids = set(request.user.groups.values_list('id', flat=True))
+
+        if group_ids.intersection({1, 2}):
+            organisation_ids = list(
+                UserOrganisationAccess.objects.filter(user_id=request.user.id)
+                .values_list('organisation_id', flat=True)
+            )
+            if not organisation_ids:
+                return _success('Contracts retrieved successfully.', data={'contracts': []})
+
+            contracts = ContractsContract.objects.filter(organisation_id__in=organisation_ids)
+        else:
+            law_firm_ids = list(
+                UserLawFirmAccess.objects.filter(user_id=request.user.id)
+                .values_list('law_firm_id', flat=True)
+            )
+            if not law_firm_ids:
+                return _success('Contracts retrieved successfully.', data={'contracts': []})
+
+            contracts = ContractsContract.objects.filter(law_firm_id__in=law_firm_ids)
+
+        if not contracts:
+            return _success('Contracts retrieved successfully.', data={'contracts': []})
         data = []
         for contract in contracts:
             data.append({

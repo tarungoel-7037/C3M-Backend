@@ -1,8 +1,9 @@
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from accounts.models import LawFirm
 from myproject.constants import ErrorMessage
 
 
@@ -13,6 +14,8 @@ class SignupSerializer(serializers.Serializer):
     confirm_password = serializers.CharField(write_only=True)
     first_name = serializers.CharField(max_length=150, required=False, default='', trim_whitespace=True, allow_blank=True)
     last_name = serializers.CharField(max_length=150, required=False, default='', trim_whitespace=True, allow_blank=True)
+    group = serializers.CharField(max_length=150, trim_whitespace=True)
+    law_firm_id = serializers.IntegerField(required=False, default=1)
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -22,6 +25,27 @@ class SignupSerializer(serializers.Serializer):
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError(ErrorMessage.EMAIL_EXISTS)
+        return value
+
+    def validate_group(self, value):
+        allowed_groups = {'law_firm_user', 'law_firm_admin'}
+        normalized = value.strip()
+        if normalized not in allowed_groups:
+            raise serializers.ValidationError('Group must be law_firm_user or law_firm_admin.')
+
+        group = Group.objects.select_related('profile').filter(name=normalized).first()
+        if not group:
+            raise serializers.ValidationError(ErrorMessage.GROUP_NOT_FOUND)
+
+        group_profile = getattr(group, 'profile', None)
+        if not group_profile or group_profile.group_entity_type != 'law':
+            raise serializers.ValidationError('Selected group is not a law firm group.')
+
+        return normalized
+
+    def validate_law_firm_id(self, value):
+        if not LawFirm.objects.filter(id=value).exists():
+            raise serializers.ValidationError('Law firm not found.')
         return value
 
     def validate(self, data):
