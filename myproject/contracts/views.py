@@ -1,10 +1,64 @@
+from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import UserLawFirmAccess, UserOrganisationAccess
-from contracts.serializers import ContractCreateSerializer
-from myapp.models import ContractsContract
+from contracts.serializers import (
+    ContractCreateSerializer,
+    ObligationCreateSerializer,
+    ObligationOutputSerializer,
+    ObligationUpdateSerializer,
+)
+from myapp.models import ContractsContract, ObligationsEscalationmatrix, ObligationsObligation
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
 from myproject.utils import ApiView, _error, _success
+
+
+def _get_contract(contract_id):
+    return ContractsContract.objects.filter(id=contract_id, deleted_at__isnull=True).first()
+
+
+def _get_obligation(obligation_id):
+    return ObligationsObligation.objects.filter(id=obligation_id, deleted_at__isnull=True).first()
+
+
+def _user_has_contract_access(user, contract):
+    if not user or not user.is_authenticated or not contract:
+        return False
+
+    has_law_firm_access = UserLawFirmAccess.objects.filter(
+        user_id=user.id,
+        law_firm_id=contract.law_firm_id,
+    ).exists()
+    has_organisation_access = UserOrganisationAccess.objects.filter(
+        user_id=user.id,
+        organisation_id=contract.organisation_id,
+    ).exists()
+    return has_law_firm_access or has_organisation_access
+
+
+def _sync_escalation_matrix(obligation, escalation_matrix, now):
+    ObligationsEscalationmatrix.objects.filter(
+        obligation_id=obligation.id,
+        deleted_at__isnull=True,
+    ).update(deleted_at=now, updated_at=now)
+
+    if not escalation_matrix:
+        return
+
+    escalations = [
+        ObligationsEscalationmatrix(
+            obligation_id=obligation.id,
+            level=item['level'],
+            days=item['days'],
+            notify_role_id=item['role_id'],
+            is_triggered=False,
+            triggered_at=None,
+            created_at=now,
+            updated_at=now,
+        )
+        for item in escalation_matrix
+    ]
+    ObligationsEscalationmatrix.objects.bulk_create(escalations)
 
 
 class ContractCreateView(ApiView):
@@ -125,4 +179,336 @@ class ContractListView(ApiView):
                 'created_at': contract.created_at,
             })
         return _success('Contracts retrieved successfully.', data={'contracts': data})
-    
+
+
+class ObligationCreateView(ApiView):
+    login_required = True
+
+    def post(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        data = request.data.get('data', request.data)
+        serializer = ObligationCreateSerializer(data=data, context={'contract_id': contract.id})
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        now = timezone.now()
+
+        with transaction.atomic():
+            obligation = ObligationsObligation.objects.create(
+                obligation_title=vd['obligation_title'],
+                description=vd.get('description'),
+                page_section_reference=vd.get('page_section_reference'),
+                extend_timeline_approval=vd.get('extend_timeline_approval'),
+                obligation_type=vd['obligation_type'],
+                party_type=vd.get('party_type', 'organisation'),
+                start_date=vd.get('start_date'),
+                end_date=vd.get('end_date'),
+                status=vd.get('status', 'pending'),
+                progress_percentage=0,
+                assigned_role_id=vd['assigned_role'],
+                contract_id=contract.id,
+                obligation_document_id=vd.get('obligation_document'),
+                created_at=now,
+                updated_at=now,
+            )
+            _sync_escalation_matrix(obligation, vd.get('escalation_matrix', []), now)
+
+        output = ObligationOutputSerializer(obligation)
+        return _success(
+            SuccessMessage.OBLIGATION_CREATED,
+            message_code=SuccessCode.OBLIGATION_CREATED,
+            data={'obligation': output.data},
+            status=201,
+        )
+
+
+class ObligationListView(ApiView):
+    login_required = True
+
+    def get(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        obligations = ObligationsObligation.objects.filter(
+            contract_id=contract.id,
+            deleted_at__isnull=True,
+        ).order_by('-created_at')
+        serializer = ObligationOutputSerializer(obligations, many=True)
+        return _success(
+            SuccessMessage.OBLIGATIONS_LISTED,
+            message_code=SuccessCode.OBLIGATIONS_LISTED,
+            data={'obligations': serializer.data},
+        )
+
+
+class ObligationDetailView(ApiView):
+    login_required = True
+
+    def get(self, request, obligation_id):
+        obligation = _get_obligation(obligation_id)
+        if not obligation:
+            return _error(ErrorMessage.OBLIGATION_NOT_FOUND, status=404)
+
+        contract = _get_contract(obligation.contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.OBLIGATION_ACCESS_DENIED, status=403)
+
+        serializer = ObligationOutputSerializer(obligation)
+        return _success(
+            SuccessMessage.OBLIGATION_RETRIEVED,
+            message_code=SuccessCode.OBLIGATION_RETRIEVED,
+            data={'obligation': serializer.data},
+        )
+
+
+class ObligationUpdateView(ApiView):
+    login_required = True
+
+    def patch(self, request, obligation_id):
+        obligation = _get_obligation(obligation_id)
+        if not obligation:
+            return _error(ErrorMessage.OBLIGATION_NOT_FOUND, status=404)
+
+        contract = _get_contract(obligation.contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.OBLIGATION_ACCESS_DENIED, status=403)
+
+        data = request.data.get('data', request.data)
+        serializer = ObligationUpdateSerializer(
+            data=data,
+            partial=True,
+            context={'contract_id': contract.id, 'instance': obligation},
+        )
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        now = timezone.now()
+
+        updatable_fields = {
+            'obligation_title': 'obligation_title',
+            'description': 'description',
+            'page_section_reference': 'page_section_reference',
+            'extend_timeline_approval': 'extend_timeline_approval',
+            'obligation_type': 'obligation_type',
+            'party_type': 'party_type',
+            'start_date': 'start_date',
+            'end_date': 'end_date',
+            'status': 'status',
+            'obligation_document': 'obligation_document_id',
+            'assigned_role': 'assigned_role_id',
+        }
+
+        with transaction.atomic():
+            for input_key, model_field in updatable_fields.items():
+                if input_key in vd:
+                    setattr(obligation, model_field, vd[input_key])
+
+            obligation.updated_at = now
+            obligation.save()
+
+            if 'escalation_matrix' in vd:
+                _sync_escalation_matrix(obligation, vd.get('escalation_matrix', []), now)
+
+        output = ObligationOutputSerializer(obligation)
+        return _success(
+            SuccessMessage.OBLIGATION_UPDATED,
+            message_code=SuccessCode.OBLIGATION_UPDATED,
+            data={'obligation': output.data},
+        )
+
+
+class ObligationDeleteView(ApiView):
+    login_required = True
+
+    def delete(self, request, obligation_id):
+        obligation = _get_obligation(obligation_id)
+        if not obligation:
+            return _error(ErrorMessage.OBLIGATION_NOT_FOUND, status=404)
+
+        contract = _get_contract(obligation.contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.OBLIGATION_ACCESS_DENIED, status=403)
+
+        now = timezone.now()
+        with transaction.atomic():
+            obligation.deleted_at = now
+            obligation.updated_at = now
+            obligation.save()
+            ObligationsEscalationmatrix.objects.filter(
+                obligation_id=obligation.id,
+                deleted_at__isnull=True,
+            ).update(deleted_at=now, updated_at=now)
+
+        return _success(
+            SuccessMessage.OBLIGATION_DELETED,
+            message_code=SuccessCode.OBLIGATION_DELETED,
+        )
+        
+        
+class ContractDetailView(ApiView):
+    login_required = True
+
+    def get(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        data = {
+            'id': contract.id,
+            'status': contract.status,
+            'organisation_id': contract.organisation_id,
+            'law_firm_id': contract.law_firm_id,
+            'project_title': contract.project_title,
+            'contract_type_id': contract.contract_type_id,
+            'project_value': str(contract.project_value) if contract.project_value else None,
+            'start_date': contract.start_date,
+            'end_date': contract.end_date,
+            'counter_party': contract.counter_party,
+            'site_address_line_1': contract.site_address_line_1,
+            'site_address_line_2': contract.site_address_line_2,
+            'site_city': contract.site_city,
+            'site_state': contract.site_state,
+            'site_zip_code': contract.site_zip_code,
+            'site_country': contract.site_country,
+            'contract_parent_id': contract.contract_parent_id,
+            'created_at': contract.created_at,
+        }
+        return _success(
+            SuccessMessage.CONTRACT_RETRIEVED,
+            message_code=SuccessCode.CONTRACT_RETRIEVED,
+            data={'contract': data},
+        )
+
+
+class ContractDeleteView(ApiView):
+    login_required = True
+
+    def delete(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        now = timezone.now()
+        with transaction.atomic():
+            contract.deleted_at = now
+            contract.updated_at = now
+            contract.save()
+
+            ObligationsObligation.objects.filter(
+                contract_id=contract.id,
+                deleted_at__isnull=True,
+            ).update(deleted_at=now, updated_at=now)
+
+        return _success(
+            SuccessMessage.CONTRACT_DELETED,
+            message_code=SuccessCode.CONTRACT_DELETED,
+        )
+        
+class ContractUpdateView(ApiView):
+    login_required = True
+
+    def patch(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        data = request.data.get('data', request.data)
+        serializer = ContractCreateSerializer(data=data, partial=True)
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        now = timezone.now()
+
+        updatable_fields = {
+            'status': 'status',
+            'project_title': 'project_title',
+            'contract_type': 'contract_type_id',
+            'project_value': 'project_value',
+            'start_date': 'start_date',
+            'end_date': 'end_date',
+            'counter_party': 'counter_party',
+            'site_address_line_1': 'site_address_line_1',
+            'site_address_line_2': 'site_address_line_2',
+            'site_city': 'site_city',
+            'site_state': 'site_state',
+            'site_zip_code': 'site_zip_code',
+            'site_country': 'site_country',
+            'contract_parent_id': 'contract_parent_id',
+        }
+
+        for input_key, model_field in updatable_fields.items():
+            if input_key in vd:
+                setattr(contract, model_field, vd[input_key])
+
+        contract.updated_at = now
+        contract.save()
+
+        data = {
+            'id': contract.id,
+            'status': contract.status,
+            'organisation_id': contract.organisation_id,
+            'law_firm_id': contract.law_firm_id,
+            'project_title': contract.project_title,
+            'contract_type_id': contract.contract_type_id,
+            'project_value': str(contract.project_value) if contract.project_value else None,
+            'start_date': contract.start_date,
+            'end_date': contract.end_date,
+            'counter_party': contract.counter_party,
+            'site_address_line_1': contract.site_address_line_1,
+            'site_address_line_2': contract.site_address_line_2,
+            'site_city': contract.site_city,
+            'site_state': contract.site_state,
+            'site_zip_code': contract.site_zip_code,
+            'site_country': contract.site_country,
+            'contract_parent_id': contract.contract_parent_id,
+            'created_at': contract.created_at,
+            'updated_at': contract.updated_at,
+        }
+        return _success(
+            SuccessMessage.CONTRACT_UPDATED,
+            message_code=SuccessCode.CONTRACT_UPDATED,
+            data={'contract': data},
+        )

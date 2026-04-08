@@ -13,6 +13,12 @@ class SuccessCode:
     USERS_LISTED        = 1400
     USER_RETRIEVED      = 2008
     CONTRACT_CREATED    = 2009
+    OBLIGATION_CREATED  = 1241
+    OBLIGATIONS_LISTED  = 2010
+    OBLIGATION_RETRIEVED = 2011
+    OBLIGATION_UPDATED  = 2012
+    OBLIGATION_DELETED  = 2013
+    CONTRACT_RETRIEVED = 2014
 
 
 class SuccessMessage:
@@ -28,6 +34,12 @@ class SuccessMessage:
     USERS_LISTED        = 'Users retrieved successfully'
     USER_RETRIEVED      = 'User retrieved successfully.'
     CONTRACT_CREATED    = 'Contract created successfully.'
+    OBLIGATION_CREATED  = 'Obligation created successfully'
+    OBLIGATIONS_LISTED  = 'Obligations retrieved successfully.'
+    OBLIGATION_RETRIEVED = 'Obligation retrieved successfully.'
+    OBLIGATION_UPDATED  = 'Obligation updated successfully.'
+    OBLIGATION_DELETED  = 'Obligation deleted successfully.'
+    CONTRACT_RETRIEVED = 'Contract retrieved successfully.'
 
 
 # ── Error message codes (3xxx) ────────────────────────────────────────────────
@@ -66,3 +78,7 @@ class ErrorMessage:
     GROUP_NOT_FOUND         = 'Group not found.'
     USER_ALREADY_IN_ORG     = 'User is already a member of this organisation.'
     USER_NOT_FOUND          = 'User not found.'
+    OBLIGATION_NOT_FOUND     = 'Obligation not found.'
+    CONTRACT_NOT_FOUND       = 'Contract not found.'
+    OBLIGATION_ACCESS_DENIED      = 'You do not have permission to access this obligation.'
+    CONTRACT_ACCESS_DENIED        = 'You do not have permission to access this contract.'
