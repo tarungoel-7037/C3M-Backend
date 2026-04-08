@@ -19,6 +19,7 @@ class SuccessCode:
     OBLIGATION_UPDATED  = 2012
     OBLIGATION_DELETED  = 2013
     CONTRACT_RETRIEVED = 2014
+    CONTRACT_DELETED   = 2015
 
 
 class SuccessMessage:
@@ -40,6 +41,7 @@ class SuccessMessage:
     OBLIGATION_UPDATED  = 'Obligation updated successfully.'
     OBLIGATION_DELETED  = 'Obligation deleted successfully.'
     CONTRACT_RETRIEVED = 'Contract retrieved successfully.'
+    CONTRACT_DELETED   = 'Contract deleted successfully.'
 
 
 # ── Error message codes (3xxx) ────────────────────────────────────────────────

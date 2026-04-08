@@ -143,7 +143,7 @@ class ContractListView(ApiView):
             if not organisation_ids:
                 return _success('Contracts retrieved successfully.', data={'contracts': []})
 
-            contracts = ContractsContract.objects.filter(organisation_id__in=organisation_ids)
+            contracts = ContractsContract.objects.filter(organisation_id__in=organisation_ids,deleted_at__isnull=True)
         else:
             law_firm_ids = list(
                 UserLawFirmAccess.objects.filter(user_id=request.user.id)
@@ -152,7 +152,7 @@ class ContractListView(ApiView):
             if not law_firm_ids:
                 return _success('Contracts retrieved successfully.', data={'contracts': []})
 
-            contracts = ContractsContract.objects.filter(law_firm_id__in=law_firm_ids)
+            contracts = ContractsContract.objects.filter(law_firm_id__in=law_firm_ids,deleted_at__isnull=True)
 
         if not contracts:
             return _success('Contracts retrieved successfully.', data={'contracts': []})
@@ -429,8 +429,8 @@ class ContractDeleteView(ApiView):
             contract.updated_at = now
             contract.save()
 
-            ObligationsObligation.objects.filter(
-                contract_id=contract.id,
+            ContractsContract.objects.filter(
+                id=contract.id,
                 deleted_at__isnull=True,
             ).update(deleted_at=now, updated_at=now)
 
