@@ -1,7 +1,8 @@
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.models import UserLawFirmAccess, UserOrganisationAccess
+from accounts.models import LawFirm, Organisation, UserLawFirmAccess, UserOrganisationAccess
 from contracts.serializers import (
     ContractCreateSerializer,
     ContractTaskCreateSerializer,
@@ -25,12 +26,26 @@ from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMes
 from myproject.utils import ApiView, _error, _success
 
 
+COUNTRY_NAMES = {
+    'IN': 'India',
+}
+
+
 def _get_contract(contract_id):
     return ContractsContract.objects.filter(id=contract_id, deleted_at__isnull=True).first()
 
 
 def _get_obligation(obligation_id):
     return ObligationsObligation.objects.filter(id=obligation_id, deleted_at__isnull=True).first()
+
+
+def _get_country(code):
+    if not code:
+        return None
+    return {
+        'code': code,
+        'name': COUNTRY_NAMES.get(code.upper()),
+    }
 
 
 def _get_task(task_id):
@@ -623,25 +638,42 @@ class ContractDetailView(ApiView):
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
 
+        organisation = Organisation.objects.filter(id=contract.organisation_id).first()
+        law_firm = LawFirm.objects.filter(id=contract.law_firm_id).first()
+        created_by = User.objects.filter(id=contract.created_by_id).first()
+
         data = {
             'id': contract.id,
-            'status': contract.status,
-            'organisation_id': contract.organisation_id,
-            'law_firm_id': contract.law_firm_id,
             'project_title': contract.project_title,
-            'contract_type_id': contract.contract_type_id,
+            'counter_party': contract.counter_party,
             'project_value': str(contract.project_value) if contract.project_value else None,
             'start_date': contract.start_date,
             'end_date': contract.end_date,
-            'counter_party': contract.counter_party,
+            'status': contract.status,
+            'organisation': {
+                'id': organisation.id if organisation else None,
+                'name': organisation.name if organisation else None,
+                'entity_type': 'organisation',
+            } if organisation else None,
+            'law_firm': {
+                'id': law_firm.id if law_firm else None,
+                'name': law_firm.name if law_firm else None,
+                'entity_type': 'law_firm',
+            } if law_firm else None,
+            'contract_type': None,
+            'created_by': {
+                'id': created_by.id,
+                'full_name': ' '.join(filter(None, [created_by.first_name, created_by.last_name])) or created_by.username,
+                'email': created_by.email,
+            } if created_by else None,
             'site_address_line_1': contract.site_address_line_1,
             'site_address_line_2': contract.site_address_line_2,
             'site_city': contract.site_city,
             'site_state': contract.site_state,
             'site_zip_code': contract.site_zip_code,
-            'site_country': contract.site_country,
-            'contract_parent_id': contract.contract_parent_id,
+            'site_country': _get_country(contract.site_country),
             'created_at': contract.created_at,
+            'updated_at': contract.updated_at,
         }
         return _success(
             SuccessMessage.CONTRACT_RETRIEVED,
