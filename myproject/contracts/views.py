@@ -4,11 +4,23 @@ from django.utils import timezone
 from accounts.models import UserLawFirmAccess, UserOrganisationAccess
 from contracts.serializers import (
     ContractCreateSerializer,
+    ContractTaskCreateSerializer,
+    ContractTaskUpdateSerializer,
     ObligationCreateSerializer,
     ObligationOutputSerializer,
     ObligationUpdateSerializer,
+    TaskOutputSerializer,
 )
-from myapp.models import ContractsContract, ObligationsEscalationmatrix, ObligationsObligation
+from myapp.models import (
+    ContractsContract,
+    ObligationsEscalationmatrix,
+    ObligationsObligation,
+    MastersTasktype,
+    TasksContracttask,
+    TasksTaskdocument,
+    TasksTaskfieldchange,
+    TasksTaskupdate,
+)
 from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
 from myproject.utils import ApiView, _error, _success
 
@@ -19,6 +31,10 @@ def _get_contract(contract_id):
 
 def _get_obligation(obligation_id):
     return ObligationsObligation.objects.filter(id=obligation_id, deleted_at__isnull=True).first()
+
+
+def _get_task(task_id):
+    return TasksContracttask.objects.filter(id=task_id, deleted_at__isnull=True).first()
 
 
 def _user_has_contract_access(user, contract):
@@ -253,6 +269,228 @@ class ObligationListView(ApiView):
             SuccessMessage.OBLIGATIONS_LISTED,
             message_code=SuccessCode.OBLIGATIONS_LISTED,
             data={'obligations': serializer.data},
+        )
+
+
+class ContractTaskListView(ApiView):
+    login_required = True
+
+    def get(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        obligation_ids = ObligationsObligation.objects.filter(
+            contract_id=contract.id,
+            deleted_at__isnull=True,
+        ).values_list('id', flat=True)
+
+        tasks = TasksContracttask.objects.filter(
+            obligation_id__in=obligation_ids,
+            deleted_at__isnull=True,
+        ).order_by('-created_at')
+
+        serializer = TaskOutputSerializer(tasks, many=True)
+        return _success(
+            SuccessMessage.TASKS_LISTED,
+            message_code=SuccessCode.TASKS_LISTED,
+            data={'tasks': serializer.data},
+        )
+
+
+class ContractTaskCreateView(ApiView):
+    login_required = True
+
+    def post(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        data = request.data.get('data', request.data)
+        serializer = ContractTaskCreateSerializer(data=data, context={'contract': contract})
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        now = timezone.now()
+
+        task = TasksContracttask.objects.create(
+            task_title=vd['task_title'],
+            description=vd.get('description'),
+            work_type=vd['work_type'],
+            start_date=vd['start_date'],
+            end_date=vd['end_date'],
+            task_status=vd['task_status'],
+            progress_percentage=vd.get('progress_percentage', 0),
+            assigned_to_role_id=vd.get('assigned_to_role_id'),
+            obligation_id=vd['obligation_id'],
+            parent_task_id=vd.get('parent_task_id'),
+            task_type_id=vd['task_type_id'],
+            created_at=now,
+            updated_at=now,
+        )
+
+        output = TaskOutputSerializer(task)
+        return _success(
+            SuccessMessage.TASK_CREATED,
+            message_code=SuccessCode.TASK_CREATED,
+            data={'task': output.data},
+            status=201,
+        )
+
+
+class TaskDetailView(ApiView):
+    login_required = True
+
+    def get(self, request, task_id):
+        task = _get_task(task_id)
+        if not task:
+            return _error(ErrorMessage.TASK_NOT_FOUND, status=404)
+
+        obligation = _get_obligation(task.obligation_id)
+        if not obligation:
+            return _error(ErrorMessage.OBLIGATION_NOT_FOUND, status=404)
+
+        contract = _get_contract(obligation.contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.TASK_ACCESS_DENIED, status=403)
+
+        serializer = TaskOutputSerializer(task, include_subtasks=True)
+        return _success(
+            SuccessMessage.TASK_RETRIEVED,
+            message_code=SuccessCode.TASK_RETRIEVED,
+            data=serializer.data,
+        )
+
+
+class TaskUpdateView(ApiView):
+    login_required = True
+
+    def patch(self, request, task_id):
+        task = _get_task(task_id)
+        if not task:
+            return _error(ErrorMessage.TASK_NOT_FOUND, status=404)
+
+        obligation = _get_obligation(task.obligation_id)
+        if not obligation:
+            return _error(ErrorMessage.OBLIGATION_NOT_FOUND, status=404)
+
+        contract = _get_contract(obligation.contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.TASK_ACCESS_DENIED, status=403)
+
+        data = request.data.get('data', request.data)
+        serializer = ContractTaskUpdateSerializer(data=data, partial=True, context={'task': task})
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        now = timezone.now()
+        field_map = {
+            'task_title': 'task_title',
+            'description': 'description',
+            'work_type': 'work_type',
+            'task_type_id': 'task_type_id',
+            'parent_task_id': 'parent_task_id',
+            'assigned_to_role_id': 'assigned_to_role_id',
+            'start_date': 'start_date',
+            'end_date': 'end_date',
+            'task_status': 'task_status',
+            'progress_percentage': 'progress_percentage',
+        }
+
+        changed_fields = []
+        for input_key, model_field in field_map.items():
+            if input_key in vd:
+                old_value = getattr(task, model_field)
+                new_value = vd[input_key]
+                if old_value != new_value:
+                    changed_fields.append((input_key, old_value, new_value))
+                setattr(task, model_field, new_value)
+
+        task.updated_at = now
+        task.save()
+
+        if 'comment' in vd and vd.get('comment') is not None:
+            task_update = TasksTaskupdate.objects.create(
+                update_date=now.date(),
+                comment_text=vd.get('comment'),
+                is_issue=False,
+                is_resolved=False,
+                task_id=task.id,
+                user_id=request.user.id if request.user and request.user.is_authenticated else None,
+                created_at=now,
+                updated_at=now,
+            )
+
+            field_change_records = []
+            for field_name, old_value, new_value in changed_fields:
+                field_change_records.append(TasksTaskfieldchange(
+                    field_name=field_name,
+                    old_value=str(old_value) if old_value is not None else None,
+                    new_value=str(new_value) if new_value is not None else None,
+                    task_update_id=task_update.id,
+                    created_at=now,
+                    updated_at=now,
+                ))
+            if field_change_records:
+                TasksTaskfieldchange.objects.bulk_create(field_change_records)
+
+        serializer = TaskOutputSerializer(task, include_subtasks=True)
+        return _success(
+            SuccessMessage.TASK_UPDATED,
+            message_code=SuccessCode.TASK_UPDATED,
+            data={'task': serializer.data},
+        )
+
+
+class TaskDeleteView(ApiView):
+    login_required = True
+
+    def delete(self, request, task_id):
+        task = _get_task(task_id)
+        if not task:
+            return _error(ErrorMessage.TASK_NOT_FOUND, status=404)
+
+        obligation = _get_obligation(task.obligation_id)
+        if not obligation:
+            return _error(ErrorMessage.OBLIGATION_NOT_FOUND, status=404)
+
+        contract = _get_contract(obligation.contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.TASK_ACCESS_DENIED, status=403)
+
+        now = timezone.now()
+        task.deleted_at = now
+        task.updated_at = now
+        task.save()
+
+        return _success(
+            SuccessMessage.TASK_DELETED,
+            message_code=SuccessCode.TASK_DELETED,
         )
 
 

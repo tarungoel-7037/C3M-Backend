@@ -20,6 +20,11 @@ class SuccessCode:
     OBLIGATION_DELETED  = 2013
     CONTRACT_RETRIEVED = 2014
     CONTRACT_DELETED   = 2015
+    TASKS_LISTED        = 1270
+    TASK_CREATED        = 1271
+    TASK_RETRIEVED      = 1272
+    TASK_UPDATED        = 1273
+    TASK_DELETED        = 1274
 
 
 class SuccessMessage:
@@ -40,6 +45,11 @@ class SuccessMessage:
     OBLIGATION_RETRIEVED = 'Obligation retrieved successfully.'
     OBLIGATION_UPDATED  = 'Obligation updated successfully.'
     OBLIGATION_DELETED  = 'Obligation deleted successfully.'
+    TASKS_LISTED        = 'Tasks retrieved successfully.'
+    TASK_CREATED        = 'Task created successfully.'
+    TASK_RETRIEVED      = 'Task retrieved successfully.'
+    TASK_UPDATED        = 'Task updated successfully.'
+    TASK_DELETED        = 'Task deleted successfully.'
     CONTRACT_RETRIEVED = 'Contract retrieved successfully.'
     CONTRACT_DELETED   = 'Contract deleted successfully.'
 
@@ -84,3 +94,5 @@ class ErrorMessage:
     CONTRACT_NOT_FOUND       = 'Contract not found.'
     OBLIGATION_ACCESS_DENIED      = 'You do not have permission to access this obligation.'
     CONTRACT_ACCESS_DENIED        = 'You do not have permission to access this contract.'
+    TASK_NOT_FOUND                = 'Task not found.'
+    TASK_ACCESS_DENIED            = 'You do not have permission to access this task.'

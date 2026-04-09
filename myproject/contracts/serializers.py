@@ -9,6 +9,10 @@ from myapp.models import (
     MastersContracttype,
     MastersDocumenttype,
     ObligationsEscalationmatrix,
+    ObligationsObligation,
+    MastersTasktype,
+    TasksContracttask,
+    TasksTaskdocument,
 )
 
 PUBLISHED_REQUIRED_FIELDS = [
@@ -164,6 +168,215 @@ class ObligationUpdateSerializer(ObligationBaseSerializer):
         return data
 
 
+class ContractTaskCreateSerializer(serializers.Serializer):
+    task_title = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    work_type = serializers.ChoiceField(choices=['own_work', 'vendor_work'])
+    obligation_id = serializers.IntegerField()
+    task_type_id = serializers.IntegerField()
+    parent_task_id = serializers.IntegerField(required=False, allow_null=True)
+    assigned_to_role_id = serializers.IntegerField(required=False, allow_null=True)
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    task_status = serializers.ChoiceField(choices=['pending', 'in_progress', 'completed'])
+    progress_percentage = serializers.IntegerField(required=False, min_value=0, max_value=100)
+
+    def validate_obligation_id(self, value):
+        contract = self.context.get('contract')
+        if not ObligationsObligation.objects.filter(id=value, contract_id=contract.id, deleted_at__isnull=True).exists():
+            raise serializers.ValidationError('Obligation not found for this contract.')
+        return value
+
+    def validate_task_type_id(self, value):
+        if not MastersTasktype.objects.filter(id=value, deleted_at__isnull=True).exists():
+            raise serializers.ValidationError('Task type not found.')
+        return value
+
+    def validate_parent_task_id(self, value):
+        if value is None:
+            return value
+
+        task = TasksContracttask.objects.filter(id=value, deleted_at__isnull=True).first()
+        if not task:
+            raise serializers.ValidationError('Parent task not found.')
+
+        obligation_id = self.initial_data.get('obligation_id')
+        if task.obligation_id != obligation_id:
+            raise serializers.ValidationError('Parent task must belong to the same obligation.')
+
+        if task.parent_task_id:
+            raise serializers.ValidationError('Parent task cannot be a subtask.')
+
+        return value
+
+    def validate_assigned_to_role_id(self, value):
+        if value is None:
+            return value
+        if not MastersContractroletype.objects.filter(id=value).exists():
+            raise serializers.ValidationError('Assigned role not found.')
+        return value
+
+    def validate(self, data):
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        if start_date and end_date and end_date <= start_date:
+            raise serializers.ValidationError({'end_date': 'end_date must be after start_date.'})
+
+        return data
+
+
+class ContractTaskUpdateSerializer(serializers.Serializer):
+    task_title = serializers.CharField(max_length=255, required=False, allow_blank=False)
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    work_type = serializers.ChoiceField(choices=['own_work', 'vendor_work'], required=False)
+    task_type_id = serializers.IntegerField(required=False)
+    parent_task_id = serializers.IntegerField(required=False, allow_null=True)
+    assigned_to_role_id = serializers.IntegerField(required=False, allow_null=True)
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    task_status = serializers.ChoiceField(choices=['pending', 'in_progress', 'completed'], required=False)
+    progress_percentage = serializers.IntegerField(required=False, min_value=0, max_value=100)
+    comment = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_task_type_id(self, value):
+        if not MastersTasktype.objects.filter(id=value, deleted_at__isnull=True).exists():
+            raise serializers.ValidationError('Task type not found.')
+        return value
+
+    def validate_parent_task_id(self, value):
+        if value is None:
+            return value
+
+        task = TasksContracttask.objects.filter(id=value, deleted_at__isnull=True).first()
+        if not task:
+            raise serializers.ValidationError('Parent task not found.')
+
+        current_task = self.context.get('task')
+        if task.obligation_id != current_task.obligation_id:
+            raise serializers.ValidationError('Parent task must belong to the same obligation.')
+
+        if task.parent_task_id:
+            raise serializers.ValidationError('Parent task cannot be a subtask.')
+
+        if current_task.id == task.id:
+            raise serializers.ValidationError('Task cannot be its own parent.')
+
+        return value
+
+    def validate_assigned_to_role_id(self, value):
+        if value is None:
+            return value
+        if not MastersContractroletype.objects.filter(id=value).exists():
+            raise serializers.ValidationError('Assigned role not found.')
+        return value
+
+    def validate(self, data):
+        task = self.context.get('task')
+        start_date = data.get('start_date', task.start_date if task else None)
+        end_date = data.get('end_date', task.end_date if task else None)
+
+        if start_date and end_date and end_date <= start_date:
+            raise serializers.ValidationError({'end_date': 'end_date must be after start_date.'})
+
+        return data
+
+
+class TaskOutputSerializer(serializers.Serializer):
+    include_subtasks = False
+
+    def __init__(self, instance, many=False, include_subtasks=False, **kwargs):
+        super().__init__(instance=instance, many=many, **kwargs)
+        self.include_subtasks = include_subtasks
+
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'task_title': instance.task_title,
+            'description': instance.description,
+            'work_type': instance.work_type,
+            'task_type': self._get_task_type_data(instance.task_type_id),
+            'assigned_to_role': self._get_role_data(instance.assigned_to_role_id),
+            'parent_task': self._get_parent_task_data(instance.parent_task_id),
+            'obligation': self._get_obligation_data(instance.obligation_id),
+            'start_date': instance.start_date,
+            'end_date': instance.end_date,
+            'task_status': instance.task_status,
+            'progress_percentage': instance.progress_percentage,
+            'subtasks_count': self._get_subtasks_count(instance.id),
+            'documents_count': self._get_documents_count(instance.id),
+            'subtasks': self._get_subtasks(instance.id) if self.include_subtasks else None,
+            'created_at': instance.created_at,
+            'updated_at': instance.updated_at,
+        }
+
+    def _get_task_type_data(self, task_type_id):
+        if not task_type_id:
+            return None
+        task_type = MastersTasktype.objects.filter(id=task_type_id).first()
+        if not task_type:
+            return None
+        return {'id': task_type.id, 'name': task_type.name}
+
+    def _get_role_data(self, role_id):
+        if not role_id:
+            return None
+        role = MastersContractroletype.objects.filter(id=role_id).first()
+        if not role:
+            return None
+        return {
+            'id': role.id,
+            'role_name': role.role_name,
+            'display_name': role.display_name,
+            'description': role.description,
+        }
+
+    def _get_parent_task_data(self, parent_task_id):
+        if not parent_task_id:
+            return None
+        parent_task = TasksContracttask.objects.filter(id=parent_task_id, deleted_at__isnull=True).first()
+        if not parent_task:
+            return None
+        return {
+            'id': parent_task.id,
+            'task_title': parent_task.task_title,
+            'task_status': parent_task.task_status,
+        }
+
+    def _get_obligation_data(self, obligation_id):
+        obligation = ObligationsObligation.objects.filter(id=obligation_id, deleted_at__isnull=True).first()
+        if not obligation:
+            return None
+        return {
+            'id': obligation.id,
+            'obligation_title': obligation.obligation_title,
+        }
+
+    def _get_subtasks_count(self, task_id):
+        return TasksContracttask.objects.filter(parent_task_id=task_id, deleted_at__isnull=True).count()
+
+    def _get_documents_count(self, task_id):
+        return TasksTaskdocument.objects.filter(task_id=task_id, deleted_at__isnull=True).count()
+
+    def _get_subtasks(self, task_id):
+        subtasks = TasksContracttask.objects.filter(parent_task_id=task_id, deleted_at__isnull=True).order_by('created_at')
+        result = []
+        for subtask in subtasks:
+            result.append({
+                'id': subtask.id,
+                'task_title': subtask.task_title,
+                'description': subtask.description,
+                'work_type': subtask.work_type,
+                'task_type': self._get_task_type_data(subtask.task_type_id),
+                'assigned_to_role': self._get_role_data(subtask.assigned_to_role_id),
+                'start_date': subtask.start_date,
+                'end_date': subtask.end_date,
+                'task_status': subtask.task_status,
+                'progress_percentage': subtask.progress_percentage,
+                'created_at': subtask.created_at,
+            })
+        return result
+
+
 class ObligationOutputSerializer(serializers.Serializer):
     def to_representation(self, instance):
         return {
@@ -240,5 +453,7 @@ class ObligationOutputSerializer(serializers.Serializer):
                 'is_triggered': escalation.is_triggered,
                 'triggered_at': escalation.triggered_at,
             })
+
+        return data
 
         return data
