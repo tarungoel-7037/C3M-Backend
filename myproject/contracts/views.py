@@ -18,6 +18,7 @@ from myapp.models import (
     ContractsContract,
     ObligationsEscalationmatrix,
     ObligationsObligation,
+    MastersContracttype,
     MastersTasktype,
     TasksContracttask,
     TasksTaskdocument,
@@ -658,6 +659,14 @@ class ContractDetailView(ApiView):
         organisation = Organisation.objects.filter(id=contract.organisation_id).first()
         law_firm = LawFirm.objects.filter(id=contract.law_firm_id).first()
         created_by = User.objects.filter(id=contract.created_by_id).first()
+        contract_type = None
+        if contract.contract_type_id:
+            contract_type = MastersContracttype.objects.filter(id=contract.contract_type_id, deleted_at__isnull=True).first()
+            if contract_type:
+                contract_type = {
+                    'id': contract_type.id,
+                    'name': contract_type.name,
+                }
 
         data = {
             'id': contract.id,
@@ -677,7 +686,7 @@ class ContractDetailView(ApiView):
                 'name': law_firm.name if law_firm else None,
                 'entity_type': 'law_firm',
             } if law_firm else None,
-            'contract_type': None,
+            'contract_type': contract_type,
             'created_by': {
                 'id': created_by.id,
                 'full_name': ' '.join(filter(None, [created_by.first_name, created_by.last_name])) or created_by.username,
