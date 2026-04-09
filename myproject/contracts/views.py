@@ -678,7 +678,7 @@ class ContractDetailView(ApiView):
         return _success(
             SuccessMessage.CONTRACT_RETRIEVED,
             message_code=SuccessCode.CONTRACT_RETRIEVED,
-            data={'contract': data},
+            data=data,
         )
 
 
