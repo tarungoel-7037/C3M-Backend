@@ -25,6 +25,10 @@ class SuccessCode:
     TASK_RETRIEVED      = 1272
     TASK_UPDATED        = 1273
     TASK_DELETED        = 1274
+    CONTRACT_TYPES_RETRIEVED = 1600
+    CONTRACT_ROLE_TYPES_RETRIEVED = 1601
+    TASK_TYPES_RETRIEVED = 1603
+    GROUPS_RETRIEVED = 1604
 
 
 class SuccessMessage:
@@ -52,6 +56,10 @@ class SuccessMessage:
     TASK_DELETED        = 'Task deleted successfully.'
     CONTRACT_RETRIEVED = 'Contract retrieved successfully.'
     CONTRACT_DELETED   = 'Contract deleted successfully.'
+    CONTRACT_TYPES_RETRIEVED = 'Contract types retrieved successfully.'
+    CONTRACT_ROLE_TYPES_RETRIEVED = 'Contract role types retrieved successfully.'
+    TASK_TYPES_RETRIEVED = 'Task types retrieved successfully.'
+    GROUPS_RETRIEVED = 'Groups retrieved successfully.'
 
 
 # ── Error message codes (3xxx) ────────────────────────────────────────────────
@@ -96,3 +104,4 @@ class ErrorMessage:
     CONTRACT_ACCESS_DENIED        = 'You do not have permission to access this contract.'
     TASK_NOT_FOUND                = 'Task not found.'
     TASK_ACCESS_DENIED            = 'You do not have permission to access this task.'
+    CONTRACT_TYPE_NOT_FOUND       = 'No contract types found'

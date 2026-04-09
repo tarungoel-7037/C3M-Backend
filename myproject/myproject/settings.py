@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'org_users',
     'contracts',
     'corsheaders', 
+    'masters'
 
 ]
 
