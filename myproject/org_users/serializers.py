@@ -7,8 +7,11 @@ from myproject.constants import ErrorMessage
 
 class AddOrganisationUserSerializer(serializers.Serializer):
     email = serializers.EmailField(trim_whitespace=True)
+    full_name = serializers.CharField(required=True, trim_whitespace=True) 
+
     first_name = serializers.CharField(max_length=150, required=False, default='', allow_blank=True, trim_whitespace=True)
     last_name = serializers.CharField(max_length=150, required=False, default='', allow_blank=True, trim_whitespace=True)
+
     organisation_id = serializers.IntegerField()
     group_id = serializers.IntegerField()
 
@@ -27,10 +30,18 @@ class AddOrganisationUserSerializer(serializers.Serializer):
             raise serializers.ValidationError(ErrorMessage.GROUP_NOT_FOUND)
         return value
 
+    def validate_group_id(self, value):
+        if not Group.objects.filter(id=value).exists():
+            raise serializers.ValidationError(ErrorMessage.GROUP_NOT_FOUND)
+        return value
+
 
 class UpdateOrganisationUserSerializer(serializers.Serializer):
+    full_name = serializers.CharField(required=False, trim_whitespace=True) 
+
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True, trim_whitespace=True)
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True, trim_whitespace=True)
+
     organisation_id = serializers.IntegerField(required=False)
     group_id = serializers.IntegerField(required=False)
 

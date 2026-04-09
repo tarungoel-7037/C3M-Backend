@@ -56,12 +56,23 @@ class AddOrganisationUserView(ApiView):
     def post(self, request):
         data = request.data.get('data', request.data)
         serializer = AddOrganisationUserSerializer(data=data)
+
         if not serializer.is_valid():
-            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors
+            )
 
         vd = serializer.validated_data
+
         organisation = Organisation.objects.get(id=vd['organisation_id'])
         group = Group.objects.get(id=vd['group_id'])
+
+        full_name = vd.get('full_name', '').strip()
+        parts = full_name.split()
+        first_name = parts[0] if parts else ''
+        last_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
 
         base_username = vd['email'].split('@')[0]
         username = base_username
@@ -73,8 +84,9 @@ class AddOrganisationUserView(ApiView):
         user = User.objects.create_user(
             username=username,
             email=vd['email'],
-            first_name=vd.get('first_name', ''),
-            last_name=vd.get('last_name', ''),
+            password="Temp@123",
+            first_name=first_name,
+            last_name=last_name,
         )
 
         UserOrganisationAccess.objects.create(
@@ -83,10 +95,19 @@ class AddOrganisationUserView(ApiView):
             law_firm=organisation.law_firm,
             group=group,
         )
+
         UserProfile.objects.create(user=user)
 
-        output = OrganisationUserSerializer(user, context={'organisation_id': organisation.id})
-        return _success(SuccessMessage.USER_ADDED_TO_ORG, data=output.data, message_code=SuccessCode.USER_ADDED_TO_ORG, status=201)
+        output = OrganisationUserSerializer(
+            user, context={'organisation_id': organisation.id}
+        )
+
+        return _success(
+            SuccessMessage.USER_ADDED_TO_ORG,
+            data=output.data,
+            message_code=SuccessCode.USER_ADDED_TO_ORG,
+            status=201
+        )
 
 
 class UpdateOrganisationUserView(ApiView):
@@ -94,32 +115,50 @@ class UpdateOrganisationUserView(ApiView):
 
     def patch(self, request, id):
         data = request.data.get('data', request.data)
+
         try:
             user = User.objects.get(id=id)
         except User.DoesNotExist:
-            return _error(ErrorMessage.USER_NOT_FOUND, message_code=ErrorCode.USER_NOT_FOUND, status=404)
+            return _error(
+                ErrorMessage.USER_NOT_FOUND,
+                message_code=ErrorCode.USER_NOT_FOUND,
+                status=404
+            )
 
         serializer = UpdateOrganisationUserSerializer(data=data)
+
         if not serializer.is_valid():
-            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors
+            )
 
         vd = serializer.validated_data
-        if 'first_name' in vd:
-            user.first_name = vd['first_name']
-        if 'last_name' in vd:
-            user.last_name = vd['last_name']
+
+        if 'full_name' in vd:
+            full_name = vd.get('full_name', '').strip()
+            parts = full_name.split()
+            user.first_name = parts[0] if parts else ''
+            user.last_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
+
         user.save()
 
         if 'group_id' in vd and 'organisation_id' in vd:
             group = Group.objects.get(id=vd['group_id'])
             access = UserOrganisationAccess.objects.filter(
-                user=user, organisation_id=vd['organisation_id']
+                user=user,
+                organisation_id=vd['organisation_id']
             ).first()
+
             if access:
                 access.group = group
                 access.save()
 
-        return _success(SuccessMessage.USER_UPDATED, message_code=SuccessCode.USER_UPDATED)
+        return _success(
+            SuccessMessage.USER_UPDATED,
+            message_code=SuccessCode.USER_UPDATED
+        )
 
 
 class DeleteOrganisationUserView(ApiView):
@@ -152,3 +191,19 @@ class UserDetailView(ApiView):
         organisation_id = request.query_params.get('organisation_id')
         serializer = OrganisationUserSerializer(user, context={'organisation_id': organisation_id})
         return _success(SuccessMessage.USER_RETRIEVED, message_code=SuccessCode.USER_RETRIEVED, data=serializer.data)
+
+
+class CurrentUserDetailView(ApiView):
+    login_required = True
+
+    def get(self, request):
+        user = request.user
+        organisations = []
+        for access in user.organisation_accesses.all():
+            organisations.append({
+                'id': access.organisation.id,
+                'name': access.organisation.name,
+                'law_firm_id': access.organisation.law_firm.id,
+                'law_firm_name': access.organisation.law_firm.name,
+            })
+        return _success(SuccessMessage.USER_RETRIEVED, message_code=SuccessCode.USER_RETRIEVED, data={'organisations': organisations})
