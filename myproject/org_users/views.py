@@ -20,10 +20,20 @@ class OrganisationUserPagination(PageNumberPagination):
 class OrganisationUsersView(ApiView):
     login_required = True
 
-    def get(self, request, organisation_id):
+    def get(self, request, organisation_id=None):
+        if organisation_id is None:
+            organisation_id = request.query_params.get('organisation_id')
+
+        if not organisation_id:
+            return _error(
+                ErrorMessage.ORGANISATION_NOT_FOUND,
+                message_code=ErrorCode.ORGANISATION_NOT_FOUND,
+                status=404
+            )
+
         try:
             organisation = Organisation.objects.get(id=organisation_id)
-        except Organisation.DoesNotExist:
+        except (Organisation.DoesNotExist, ValueError, TypeError):
             return _error(ErrorMessage.ORGANISATION_NOT_FOUND, message_code=ErrorCode.ORGANISATION_NOT_FOUND, status=404)
 
         user_ids = UserOrganisationAccess.objects.filter(

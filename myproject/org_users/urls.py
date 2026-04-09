@@ -3,6 +3,7 @@ from django.urls import path
 from org_users import views
 
 urlpatterns = [
+    path('users/', views.OrganisationUsersView.as_view(), name='organisation-users-current'),
     path('users/<int:organisation_id>/', views.OrganisationUsersView.as_view(), name='organisation-users'),
     path('users/create/', views.AddOrganisationUserView.as_view(), name='add-organisation-user'),
     path('users/<int:id>/update/', views.UpdateOrganisationUserView.as_view(), name='update-organisation-user'),
