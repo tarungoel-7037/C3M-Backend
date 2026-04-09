@@ -193,17 +193,4 @@ class UserDetailView(ApiView):
         return _success(SuccessMessage.USER_RETRIEVED, message_code=SuccessCode.USER_RETRIEVED, data=serializer.data)
 
 
-class CurrentUserDetailView(ApiView):
-    login_required = True
 
-    def get(self, request):
-        user = request.user
-        organisations = []
-        for access in user.organisation_accesses.all():
-            organisations.append({
-                'id': access.organisation.id,
-                'name': access.organisation.name,
-                'law_firm_id': access.organisation.law_firm.id,
-                'law_firm_name': access.organisation.law_firm.name,
-            })
-        return _success(SuccessMessage.USER_RETRIEVED, message_code=SuccessCode.USER_RETRIEVED, data={'organisations': organisations})
