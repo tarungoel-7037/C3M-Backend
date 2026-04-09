@@ -41,7 +41,9 @@ class MastersPagination(PageNumberPagination):
 class ContractTypeListView(ApiView):
     def get(self, request):
         contract_types = MastersContracttype.objects.filter(deleted_at__isnull=True).order_by('-created_at')
-        serializer = ContractTypeSerializer(contract_types, many=True)
+        paginator = MastersPagination()
+        page = paginator.paginate_queryset(contract_types, request)
+        serializer = ContractTypeSerializer(page, many=True)
 
         return _success(
             SuccessMessage.CONTRACT_TYPES_RETRIEVED,
@@ -49,9 +51,9 @@ class ContractTypeListView(ApiView):
             data={
                 'contract_types': serializer.data,
                 'pagination': {
-                    'total': contract_types.count(),
-                    'next': None,
-                    'previous': None,
+                    'total': paginator.page.paginator.count,
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link(),
                 },
             },
         )
@@ -60,7 +62,9 @@ class ContractTypeListView(ApiView):
 class ContractTaskTypeListView(ApiView):
     def get(self, request):
         task_types = MastersTasktype.objects.filter(deleted_at__isnull=True).order_by('-created_at')
-        serializer = TaskTypeSerializer(task_types, many=True)
+        paginator = MastersPagination()
+        page = paginator.paginate_queryset(task_types, request)
+        serializer = TaskTypeSerializer(page, many=True)
 
         return _success(
             SuccessMessage.TASK_TYPES_RETRIEVED,
@@ -68,9 +72,9 @@ class ContractTaskTypeListView(ApiView):
             data={
                 'task_types': serializer.data,
                 'pagination': {
-                    'total': task_types.count(),
-                    'next': None,
-                    'previous': None,
+                    'total': paginator.page.paginator.count,
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link(),
                 },
             },
         )
@@ -79,7 +83,9 @@ class ContractTaskTypeListView(ApiView):
 class ContractRoleTypeListView(ApiView):
     def get(self, request):
         contract_role_types = MastersContractroletype.objects.filter(deleted_at__isnull=True).order_by('-created_at')
-        serializer = ContractRoleTypeSerializer(contract_role_types, many=True)
+        paginator = MastersPagination()
+        page = paginator.paginate_queryset(contract_role_types, request)
+        serializer = ContractRoleTypeSerializer(page, many=True)
 
         return _success(
             SuccessMessage.CONTRACT_ROLE_TYPES_RETRIEVED,
@@ -87,9 +93,9 @@ class ContractRoleTypeListView(ApiView):
             data={
                 'contract_role_types': serializer.data,
                 'pagination': {
-                    'total': contract_role_types.count(),
-                    'next': None,
-                    'previous': None,
+                    'total': paginator.page.paginator.count,
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link(),
                 },
             },
         )

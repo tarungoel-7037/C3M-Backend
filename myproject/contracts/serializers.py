@@ -15,6 +15,19 @@ from myapp.models import (
     TasksTaskdocument,
 )
 
+COUNTRY_NAMES = {
+    'IN': 'India',
+}
+
+
+def _get_country(code):
+    if not code:
+        return None
+    return {
+        'code': code,
+        'name': COUNTRY_NAMES.get(code.upper()),
+    }
+
 PUBLISHED_REQUIRED_FIELDS = [
     'project_title', 'contract_type', 'project_value',
     'start_date', 'end_date', 'site_address_line_1',
@@ -23,6 +36,33 @@ PUBLISHED_REQUIRED_FIELDS = [
 
 STATUS_CHOICES = ['draft', 'pending', 'in_progress', 'completed']
 OBLIGATION_STATUS_CHOICES = ['pending', 'in_progress', 'completed']
+
+
+class ContractOutputSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+    organisation_id = serializers.IntegerField()
+    law_firm_id = serializers.IntegerField()
+    project_title = serializers.CharField()
+    contract_type_id = serializers.IntegerField(allow_null=True)
+    project_value = serializers.SerializerMethodField()
+    start_date = serializers.DateField(allow_null=True)
+    end_date = serializers.DateField(allow_null=True)
+    counter_party = serializers.CharField(allow_null=True)
+    site_address_line_1 = serializers.CharField(allow_null=True)
+    site_address_line_2 = serializers.CharField(allow_null=True)
+    site_city = serializers.CharField(allow_null=True)
+    site_state = serializers.CharField(allow_null=True)
+    site_zip_code = serializers.CharField(allow_null=True)
+    site_country = serializers.SerializerMethodField()
+    contract_parent_id = serializers.IntegerField(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+    def get_project_value(self, obj):
+        return str(obj.project_value) if obj.project_value else None
+
+    def get_site_country(self, obj):
+        return _get_country(obj.site_country)
 
 
 class ContractCreateSerializer(serializers.Serializer):

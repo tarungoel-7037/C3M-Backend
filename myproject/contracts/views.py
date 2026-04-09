@@ -1,10 +1,12 @@
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.pagination import PageNumberPagination
 
 from accounts.models import LawFirm, Organisation, UserLawFirmAccess, UserOrganisationAccess
 from contracts.serializers import (
     ContractCreateSerializer,
+    ContractOutputSerializer,
     ContractTaskCreateSerializer,
     ContractTaskUpdateSerializer,
     ObligationCreateSerializer,
@@ -65,6 +67,12 @@ def _user_has_contract_access(user, contract):
         organisation_id=contract.organisation_id,
     ).exists()
     return has_law_firm_access or has_organisation_access
+
+
+class ContractsPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'limit'
+    max_page_size = 100
 
 
 def _sync_escalation_matrix(obligation, escalation_matrix, now):
@@ -185,31 +193,19 @@ class ContractListView(ApiView):
 
             contracts = ContractsContract.objects.filter(law_firm_id__in=law_firm_ids,deleted_at__isnull=True)
 
-        if not contracts:
-            return _success('Contracts retrieved successfully.', data={'contracts': []})
-        data = []
-        for contract in contracts:
-            data.append({
-                'id': contract.id,
-                'status': contract.status,
-                'organisation_id': contract.organisation_id,
-                'law_firm_id': contract.law_firm_id,
-                'project_title': contract.project_title,
-                'contract_type_id': contract.contract_type_id,
-                'project_value': str(contract.project_value) if contract.project_value else None,
-                'start_date': contract.start_date,
-                'end_date': contract.end_date,
-                'counter_party': contract.counter_party,
-                'site_address_line_1': contract.site_address_line_1,
-                'site_address_line_2': contract.site_address_line_2,
-                'site_city': contract.site_city,
-                'site_state': contract.site_state,
-                'site_zip_code': contract.site_zip_code,
-                'site_country': contract.site_country,
-                'contract_parent_id': contract.contract_parent_id,
-                'created_at': contract.created_at,
-            })
-        return _success('Contracts retrieved successfully.', data={'contracts': data})
+        contracts = contracts.order_by('-created_at')
+        paginator = ContractsPagination()
+        page = paginator.paginate_queryset(contracts, request)
+        serializer = ContractOutputSerializer(page, many=True)
+
+        return _success('Contracts retrieved successfully.', data={
+            'contracts': serializer.data,
+            'pagination': {
+                'total': paginator.page.paginator.count,
+                'next': paginator.get_next_link(),
+                'previous': paginator.get_previous_link(),
+            },
+        })
 
 
 class ObligationCreateView(ApiView):
@@ -279,11 +275,22 @@ class ObligationListView(ApiView):
             contract_id=contract.id,
             deleted_at__isnull=True,
         ).order_by('-created_at')
-        serializer = ObligationOutputSerializer(obligations, many=True)
+        
+        paginator = ContractsPagination()
+        page = paginator.paginate_queryset(obligations, request)
+        serializer = ObligationOutputSerializer(page, many=True)
+        
         return _success(
             SuccessMessage.OBLIGATIONS_LISTED,
             message_code=SuccessCode.OBLIGATIONS_LISTED,
-            data={'obligations': serializer.data},
+            data={
+                'obligations': serializer.data,
+                'pagination': {
+                    'total': paginator.page.paginator.count,
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link(),
+                },
+            },
         )
 
 
@@ -308,11 +315,21 @@ class ContractTaskListView(ApiView):
             deleted_at__isnull=True,
         ).order_by('-created_at')
 
-        serializer = TaskOutputSerializer(tasks, many=True)
+        paginator = ContractsPagination()
+        page = paginator.paginate_queryset(tasks, request)
+        serializer = TaskOutputSerializer(page, many=True)
+        
         return _success(
             SuccessMessage.TASKS_LISTED,
             message_code=SuccessCode.TASKS_LISTED,
-            data={'tasks': serializer.data},
+            data={
+                'tasks': serializer.data,
+                'pagination': {
+                    'total': paginator.page.paginator.count,
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link(),
+                },
+            },
         )
 
 
