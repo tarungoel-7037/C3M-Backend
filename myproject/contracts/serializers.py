@@ -135,6 +135,43 @@ class ContractCreateSerializer(serializers.Serializer):
         return data
 
 
+class ContractDocumentUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    document_type = serializers.IntegerField()
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_document_type(self, value):
+        if not MastersDocumenttype.objects.filter(id=value, deleted_at__isnull=True).exists():
+            raise serializers.ValidationError('Document type not found.')
+        return value
+
+
+class ContractDocumentOutputSerializer(serializers.Serializer):
+    def to_representation(self, instance):
+        document_type = MastersDocumenttype.objects.filter(id=instance.document_type_id).first()
+        uploaded_by = User.objects.filter(id=instance.uploaded_by_id).first()
+
+        return {
+            'id': instance.id,
+            'document_name': instance.document_name,
+            'description': instance.description,
+            'document_type': {
+                'id': document_type.id,
+                'name': document_type.name,
+            } if document_type else None,
+            'file_url': instance.file_path,
+            'file_size': instance.file_size,
+            'file_type': instance.file_type,
+            'uploaded_by': {
+                'id': uploaded_by.id,
+                'full_name': ' '.join(filter(None, [uploaded_by.first_name, uploaded_by.last_name])) or uploaded_by.username,
+                'email': uploaded_by.email,
+            } if uploaded_by else None,
+            'created_at': instance.created_at,
+            'updated_at': instance.updated_at,
+            'contract_id': instance.contract_id,
+        }
+
 class EscalationMatrixInputSerializer(serializers.Serializer):
     level = serializers.IntegerField(min_value=1)
     role_id = serializers.IntegerField()

@@ -120,3 +120,8 @@ class GroupListView(ApiView):
                 },
             },
         )
+        
+        
+class DocumentDownloadView(ApiView):
+    def post(self, request):
+        pass

@@ -2,6 +2,10 @@ from django.urls import path
 
 from .views import (
     ContractCreateView,
+    ContractDocumentDeleteView,
+    ContractDocumentDetailView,
+    ContractDocumentListView,
+    ContractDocumentUploadView,
     ContractListView,
     ContractDetailView,
     ContractTaskCreateView,
@@ -22,6 +26,10 @@ urlpatterns = [
     path('contracts/create/', ContractCreateView.as_view(), name='contract-create'),
     path('contracts/', ContractListView.as_view(), name='list-contracts'),
     path('contracts/<int:contract_id>/', ContractDetailView.as_view(), name='contract-detail'),
+    path('contracts/<int:contract_id>/documents/', ContractDocumentListView.as_view(), name='contract-document-list'),
+    path('contracts/<int:contract_id>/documents/upload/', ContractDocumentUploadView.as_view(), name='contract-document-upload'),
+    path('contracts/<int:contract_id>/documents/<int:document_id>/', ContractDocumentDetailView.as_view(), name='contract-document-detail'),
+    path('contracts/<int:contract_id>/documents/<int:document_id>/delete/', ContractDocumentDeleteView.as_view(), name='contract-document-delete'),
     path('contracts/<int:contract_id>/delete/', ContractDeleteView.as_view(), name='contract-delete'),
     path('contracts/<int:contract_id>/update/', ContractUpdateView.as_view(), name='contract-update'),
     path('contracts/<int:contract_id>/obligations/create/', ObligationCreateView.as_view(), name='obligation-create'),

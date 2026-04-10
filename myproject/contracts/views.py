@@ -1,11 +1,19 @@
+import os
+import uuid
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 from rest_framework.pagination import PageNumberPagination
 
 from accounts.models import LawFirm, Organisation, UserLawFirmAccess, UserOrganisationAccess
 from contracts.serializers import (
     ContractCreateSerializer,
+    ContractDocumentOutputSerializer,
+    ContractDocumentUploadSerializer,
     ContractOutputSerializer,
     ContractTaskCreateSerializer,
     ContractTaskUpdateSerializer,
@@ -16,9 +24,11 @@ from contracts.serializers import (
 )
 from myapp.models import (
     ContractsContract,
+    ContractsContractdocument,
     ObligationsEscalationmatrix,
     ObligationsObligation,
     MastersContracttype,
+    MastersDocumenttype,
     MastersTasktype,
     TasksContracttask,
     TasksTaskdocument,
@@ -74,6 +84,20 @@ class ContractsPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'limit'
     max_page_size = 100
+
+
+def _save_contract_document_file(file_obj, contract_id):
+    upload_dir = Path(settings.BASE_DIR) / 'uploads' / 'contracts' / str(contract_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    sanitized_name = get_valid_filename(file_obj.name)
+    unique_name = f"{uuid.uuid4().hex}_{sanitized_name}"
+    saved_path = upload_dir / unique_name
+
+    with open(saved_path, 'wb+') as destination:
+        for chunk in file_obj.chunkxs():
+            destination.write(chunk)
+
+    return str(Path('uploads') / 'contracts' / str(contract_id) / unique_name).replace('\\', '/')
 
 
 def _sync_escalation_matrix(obligation, escalation_matrix, now):
@@ -207,6 +231,145 @@ class ContractListView(ApiView):
                 'previous': paginator.get_previous_link(),
             },
         })
+
+
+class ContractDocumentUploadView(ApiView):
+    login_required = True
+
+    def post(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        serializer = ContractDocumentUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        file_obj = vd['file']
+        file_path = _save_contract_document_file(file_obj, contract.id)
+        now = timezone.now()
+
+        document = ContractsContractdocument.objects.create(
+            document_name=file_obj.name,
+            file_path=file_path,
+            file_size=file_obj.size,
+            file_type=file_obj.content_type,
+            description=vd.get('description'),
+            contract_id=contract.id,
+            document_type_id=vd['document_type'],
+            uploaded_by_id=request.user.id if request.user and request.user.is_authenticated else None,
+            created_at=now,
+            updated_at=now,
+        )
+
+        output = ContractDocumentOutputSerializer(document)
+        return _success(
+            'Contract document uploaded successfully.',
+            message_code=SuccessCode.DEFAULT,
+            data={'document': output.data},
+            status=201,
+        )
+
+
+class ContractDocumentListView(ApiView):
+    login_required = True
+
+    def get(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        signed = request.GET.get('signed', '').lower() == 'true'
+        documents = ContractsContractdocument.objects.filter(
+            contract_id=contract.id,
+            deleted_at__isnull=True,
+        )
+
+        if signed:
+            contract_document_type_ids = MastersDocumenttype.objects.filter(
+                name__iexact='contract document'
+            ).values_list('id', flat=True)
+            documents = documents.filter(document_type_id__in=contract_document_type_ids)
+
+        documents = documents.order_by('-created_at')
+        serializer = ContractDocumentOutputSerializer(documents, many=True)
+
+        return _success(
+            'Contract documents retrieved successfully.',
+            message_code=SuccessCode.DEFAULT,
+            data={'documents': serializer.data},
+        )
+
+
+class ContractDocumentDetailView(ApiView):
+    login_required = True
+
+    def get(self, request, contract_id, document_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        document = ContractsContractdocument.objects.filter(
+            id=document_id,
+            contract_id=contract.id,
+            deleted_at__isnull=True,
+        ).first()
+
+        if not document:
+            return _error('Document not found.', status=404)
+
+        serializer = ContractDocumentOutputSerializer(document)
+        return _success(
+            'Document retrieved successfully.',
+            message_code=1206,
+            data=serializer.data,
+        )
+
+
+class ContractDocumentDeleteView(ApiView):
+    login_required = True
+
+    def delete(self, request, contract_id, document_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(ErrorMessage.CONTRACT_NOT_FOUND, status=404)
+
+        if not _user_has_contract_access(request.user, contract):
+            return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        document = ContractsContractdocument.objects.filter(
+            id=document_id,
+            contract_id=contract.id,
+            deleted_at__isnull=True,
+        ).first()
+
+        if not document:
+            return _error('Document not found.', status=404)
+
+        now = timezone.now()
+        document.deleted_at = now
+        document.updated_at = now
+        document.save()
+
+        return _success(
+            'Document deleted successfully.',
+            message_code=1207,
+            data={'id': document.id},
+        )
 
 
 class ObligationCreateView(ApiView):

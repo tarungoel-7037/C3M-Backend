@@ -5,6 +5,7 @@ from .views import (
     ContractTaskTypeListView,
     ContractTypeListView,
     GroupListView,
+    DocumentDownloadView
 )
 
 urlpatterns = [
@@ -12,5 +13,6 @@ urlpatterns = [
     path('masters/groups/', GroupListView.as_view(), name='masters-groups'),
     path('masters/contract-task-types/', ContractTaskTypeListView.as_view(), name='masters-contract-task-types'),
     path('masters/contract-role-types/', ContractRoleTypeListView.as_view(), name='masters-contract-role-types'),
+    path('masters/document-download/', DocumentDownloadView.as_view(), name='masters-document-download'),
 ]
 
