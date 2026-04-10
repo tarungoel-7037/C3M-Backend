@@ -62,6 +62,26 @@ class SuccessMessage:
     GROUPS_RETRIEVED = 'Groups retrieved successfully.'
 
 
+class AuditModule:
+    CONTRACTS = 'contracts'
+    CONTRACT_DOCUMENTS = 'contract_document'
+    OBLIGATIONS = 'obligations'
+    TASKS = 'tasks'
+
+
+class AuditAction:
+    CREATE_CONTRACT = 'Create Contract'
+    DELETE_CONTRACT = 'Delete Contract'
+    CREATE_OBLIGATION = 'Create Obligation'
+    UPDATE_OBLIGATION = 'Update Obligation'
+    DELETE_OBLIGATION = 'Delete Obligation'
+    UPLOAD_CONTRACT_DOCUMENT = 'Upload Contract Document'
+    DELETE_CONTRACT_DOCUMENT = 'Delete Contract Document'
+    CREATE_CONTRACT_TASK = 'Create Contract Task'
+    UPDATE_CONTRACT_TASK = 'Update Contract Task'
+    DELETE_CONTRACT_TASK = 'Delete Contract Task'
+
+
 # ── Error message codes (3xxx) ────────────────────────────────────────────────
 
 class ErrorCode:
@@ -105,3 +125,5 @@ class ErrorMessage:
     TASK_NOT_FOUND                = 'Task not found.'
     TASK_ACCESS_DENIED            = 'You do not have permission to access this task.'
     CONTRACT_TYPE_NOT_FOUND       = 'No contract types found'
+    
+    

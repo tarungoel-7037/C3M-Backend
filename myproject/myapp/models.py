@@ -15,14 +15,11 @@ class AuditAuditlog(models.Model):
     deleted_at = models.DateTimeField(blank=True, null=True)
     action = models.CharField(max_length=200)
     action_details = models.TextField()
-    performed_by_role = models.CharField(max_length=50)
+    obj_id = models.IntegerField(blank=True, null=True)
     module = models.CharField(max_length=50)
-    status = models.CharField(max_length=20)
-    from_status = models.CharField(max_length=100)
-    to_status = models.CharField(max_length=100)
-    changed_fields = models.JSONField()
     related_object_id = models.IntegerField(blank=True, null=True)
     performed_by_id = models.BigIntegerField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:
         db_table = 'audit_auditlog'

@@ -35,8 +35,15 @@ from myapp.models import (
     TasksTaskfieldchange,
     TasksTaskupdate,
 )
-from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
-from myproject.utils import ApiView, _error, _success
+from myproject.constants import (
+    AuditAction,
+    AuditModule,
+    ErrorCode,
+    ErrorMessage,
+    SuccessCode,
+    SuccessMessage,
+)
+from myproject.utils import ApiView, _error, _success, log_action
 
 
 COUNTRY_NAMES = {
@@ -94,7 +101,7 @@ def _save_contract_document_file(file_obj, contract_id):
     saved_path = upload_dir / unique_name
 
     with open(saved_path, 'wb+') as destination:
-        for chunk in file_obj.chunkxs():
+        for chunk in file_obj.chunks():
             destination.write(chunk)
 
     return str(Path('uploads') / 'contracts' / str(contract_id) / unique_name).replace('\\', '/')
@@ -162,6 +169,15 @@ class ContractCreateView(ApiView):
             is_open_ended=False,
             created_at=now,
             updated_at=now,
+        )
+
+        log_action(
+            request,
+            action=AuditAction.CREATE_CONTRACT,
+            module=AuditModule.CONTRACTS,
+            obj_id=contract.id,
+            action_details=f'Created contract {contract.project_title}',
+            related_object_id=contract.id,
         )
 
         return _success(
@@ -270,6 +286,15 @@ class ContractDocumentUploadView(ApiView):
             updated_at=now,
         )
 
+        log_action(
+            request,
+            action=AuditAction.UPLOAD_CONTRACT_DOCUMENT,
+            module=AuditModule.CONTRACT_DOCUMENTS,
+            obj_id=document.id,
+            action_details=f'Uploaded document {document.document_name} for contract {contract.project_title}',
+            related_object_id=contract.id,
+        )
+
         output = ContractDocumentOutputSerializer(document)
         return _success(
             'Contract document uploaded successfully.',
@@ -365,6 +390,15 @@ class ContractDocumentDeleteView(ApiView):
         document.updated_at = now
         document.save()
 
+        log_action(
+            request,
+            action=AuditAction.DELETE_CONTRACT_DOCUMENT,
+            module=AuditModule.CONTRACT_DOCUMENTS,
+            obj_id=document.id,
+            action_details=f'Deleted document {document.document_name} from contract {contract.project_title}',
+            related_object_id=contract.id,
+        )
+
         return _success(
             'Document deleted successfully.',
             message_code=1207,
@@ -414,6 +448,15 @@ class ObligationCreateView(ApiView):
                 updated_at=now,
             )
             _sync_escalation_matrix(obligation, vd.get('escalation_matrix', []), now)
+
+        log_action(
+            request,
+            action=AuditAction.CREATE_OBLIGATION,
+            module=AuditModule.OBLIGATIONS,
+            obj_id=obligation.id,
+            action_details=f'Created obligation {obligation.obligation_title} for contract {contract.project_title}',
+            related_object_id=contract.id,
+        )
 
         output = ObligationOutputSerializer(obligation)
         return _success(
@@ -536,6 +579,17 @@ class ContractTaskCreateView(ApiView):
             updated_at=now,
         )
 
+        obligation = _get_obligation(task.obligation_id)
+
+        log_action(
+            request,
+            action=AuditAction.CREATE_CONTRACT_TASK,
+            module=AuditModule.TASKS,
+            obj_id=task.id,
+            action_details=f'Created task {task.task_title} for obligation {obligation.obligation_title if obligation else task.obligation_id}',
+            related_object_id=task.obligation_id,
+        )
+
         output = TaskOutputSerializer(task)
         return _success(
             SuccessMessage.TASK_CREATED,
@@ -616,12 +670,15 @@ class TaskUpdateView(ApiView):
         }
 
         changed_fields = []
+        changed_fields_payload = {}
+        old_task_status = task.task_status
         for input_key, model_field in field_map.items():
             if input_key in vd:
                 old_value = getattr(task, model_field)
                 new_value = vd[input_key]
                 if old_value != new_value:
                     changed_fields.append((input_key, old_value, new_value))
+                    changed_fields_payload[input_key] = {'old': old_value, 'new': new_value}
                 setattr(task, model_field, new_value)
 
         task.updated_at = now
@@ -651,6 +708,15 @@ class TaskUpdateView(ApiView):
                 ))
             if field_change_records:
                 TasksTaskfieldchange.objects.bulk_create(field_change_records)
+
+        log_action(
+            request,
+            action=AuditAction.UPDATE_CONTRACT_TASK,
+            module=AuditModule.TASKS,
+            obj_id=task.id,
+            action_details=f'Updated task {task.task_title} for obligation {obligation.obligation_title}',
+            related_object_id=obligation.id,
+        )
 
         serializer = TaskOutputSerializer(task, include_subtasks=True)
         return _success(
@@ -683,6 +749,15 @@ class TaskDeleteView(ApiView):
         task.deleted_at = now
         task.updated_at = now
         task.save()
+
+        log_action(
+            request,
+            action=AuditAction.DELETE_CONTRACT_TASK,
+            module=AuditModule.TASKS,
+            obj_id=task.id,
+            action_details=f'Deleted task {task.task_title} for obligation {obligation.obligation_title}',
+            related_object_id=obligation.id,
+        )
 
         return _success(
             SuccessMessage.TASK_DELETED,
@@ -758,9 +833,20 @@ class ObligationUpdateView(ApiView):
             'assigned_role': 'assigned_role_id',
         }
 
+        changed_fields = {}
+        from_status = ''
+        to_status = ''
+
         with transaction.atomic():
             for input_key, model_field in updatable_fields.items():
                 if input_key in vd:
+                    old_value = getattr(obligation, model_field)
+                    new_value = vd[input_key]
+                    if old_value != new_value:
+                        changed_fields[input_key] = {'old': old_value, 'new': new_value}
+                        if input_key == 'status':
+                            from_status = old_value or ''
+                            to_status = new_value or ''
                     setattr(obligation, model_field, vd[input_key])
 
             obligation.updated_at = now
@@ -768,6 +854,15 @@ class ObligationUpdateView(ApiView):
 
             if 'escalation_matrix' in vd:
                 _sync_escalation_matrix(obligation, vd.get('escalation_matrix', []), now)
+
+        log_action(
+            request,
+            action=AuditAction.UPDATE_OBLIGATION,
+            module=AuditModule.OBLIGATIONS,
+            obj_id=obligation.id,
+            action_details=f'Updated obligation {obligation.obligation_title} for contract {contract.project_title}',
+            related_object_id=contract.id,
+        )
 
         output = ObligationOutputSerializer(obligation)
         return _success(
@@ -801,6 +896,15 @@ class ObligationDeleteView(ApiView):
                 obligation_id=obligation.id,
                 deleted_at__isnull=True,
             ).update(deleted_at=now, updated_at=now)
+
+        log_action(
+            request,
+            action=AuditAction.DELETE_OBLIGATION,
+            module=AuditModule.OBLIGATIONS,
+            obj_id=obligation.id,
+            action_details=f'Deleted obligation {obligation.obligation_title} from contract {contract.project_title}',
+            related_object_id=contract.id,
+        )
 
         return _success(
             SuccessMessage.OBLIGATION_DELETED,
@@ -892,6 +996,15 @@ class ContractDeleteView(ApiView):
                 id=contract.id,
                 deleted_at__isnull=True,
             ).update(deleted_at=now, updated_at=now)
+
+        log_action(
+            request,
+            action=AuditAction.DELETE_CONTRACT,
+            module=AuditModule.CONTRACTS,
+            obj_id=contract.id,
+            action_details=f'Deleted contract {contract.project_title}',
+            related_object_id=contract.id,
+        )
 
         return _success(
             SuccessMessage.CONTRACT_DELETED,
