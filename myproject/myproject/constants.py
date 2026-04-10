@@ -67,6 +67,7 @@ class AuditModule:
     CONTRACT_DOCUMENTS = 'contract_document'
     OBLIGATIONS = 'obligations'
     TASKS = 'tasks'
+    USERS = 'users'
 
 
 class AuditAction:
@@ -76,6 +77,17 @@ class AuditAction:
     UPDATE_OBLIGATION = 'Update Obligation'
     DELETE_OBLIGATION = 'Delete Obligation'
     UPLOAD_CONTRACT_DOCUMENT = 'Upload Contract Document'
+    DELETE_CONTRACT_DOCUMENT = 'Delete Contract Document'
+    CREATE_CONTRACT_TASK = 'Create Contract Task'
+    UPDATE_CONTRACT_TASK = 'Update Contract Task'
+    DELETE_CONTRACT_TASK = 'Delete Contract Task'
+    CREATE_USER = 'Create User'
+    UPDATE_USER = 'Update User'
+    REMOVE_USER = 'Remove User'
+    ADD_ORGANISATION_USER = 'Add Organisation User'
+    UPDATE_ORGANISATION_USER = 'Update Organisation User'
+    REMOVE_ORGANISATION_USER = 'Remove Organisation User'
+    CHANGE_PASSWORD = 'Change Password'
     DELETE_CONTRACT_DOCUMENT = 'Delete Contract Document'
     CREATE_CONTRACT_TASK = 'Create Contract Task'
     UPDATE_CONTRACT_TASK = 'Update Contract Task'

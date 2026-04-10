@@ -2,8 +2,8 @@ from django.contrib.auth.models import Group, User
 from rest_framework.pagination import PageNumberPagination
 
 from accounts.models import Organisation, UserOrganisationAccess, UserProfile
-from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
-from myproject.utils import ApiView, _error, _success
+from myproject.constants import AuditAction, AuditModule, ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
+from myproject.utils import ApiView, _error, _success, log_action
 from org_users.serializers import (
     AddOrganisationUserSerializer,
     OrganisationUserSerializer,
@@ -108,6 +108,15 @@ class AddOrganisationUserView(ApiView):
 
         UserProfile.objects.create(user=user)
 
+        log_action(
+            request,
+            action=AuditAction.ADD_ORGANISATION_USER,
+            module=AuditModule.USERS,
+            obj_id=user.id,
+            action_details=f'Added user {user.username} to organisation {organisation.name}',
+            related_object_id=organisation.id,
+        )
+
         output = OrganisationUserSerializer(
             user, context={'organisation_id': organisation.id}
         )
@@ -165,6 +174,15 @@ class UpdateOrganisationUserView(ApiView):
                 access.group = group
                 access.save()
 
+        log_action(
+            request,
+            action=AuditAction.UPDATE_ORGANISATION_USER,
+            module=AuditModule.USERS,
+            obj_id=user.id,
+            action_details=f'Updated organisation user {user.username}',
+            related_object_id=vd.get('organisation_id'),
+        )
+
         return _success(
             SuccessMessage.USER_UPDATED,
             message_code=SuccessCode.USER_UPDATED
@@ -185,6 +203,18 @@ class DeleteOrganisationUserView(ApiView):
             UserOrganisationAccess.objects.filter(
                 user=user, organisation_id=organisation_id
             ).delete()
+
+        log_action(
+            request,
+            action=AuditAction.REMOVE_ORGANISATION_USER,
+            module=AuditModule.USERS,
+            obj_id=user.id,
+            action_details=(
+                f'Removed user {user.username} from organisation {organisation_id}'
+                if organisation_id else f'Removed user {user.username}'
+            ),
+            related_object_id=int(organisation_id) if organisation_id else None,
+        )
 
         return _success(SuccessMessage.USER_REMOVED, message_code=SuccessCode.USER_REMOVED)
 

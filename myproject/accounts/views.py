@@ -12,8 +12,8 @@ from accounts.serializers import (
     UserProfileOutputSerializer,
     UserSerializer,
 )
-from myproject.constants import ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
-from myproject.utils import ApiView, _error, _success
+from myproject.constants import AuditAction, AuditModule, ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
+from myproject.utils import ApiView, _error, _success, log_action
 
 
 class SignupView(ApiView):
@@ -40,6 +40,15 @@ class SignupView(ApiView):
             user=user,
             law_firm=law_firm,
             group=group,
+        )
+
+        log_action(
+            request,
+            action=AuditAction.CREATE_USER,
+            module=AuditModule.USERS,
+            obj_id=user.id,
+            action_details=f'Created user {user.username}',
+            related_object_id=law_firm.id,
         )
 
         return _success(SuccessMessage.USER_CREATED, data=UserSerializer(user).data, message_code=SuccessCode.USER_CREATED, status=201)
@@ -184,5 +193,13 @@ class ChangePasswordView(ApiView):
 
         request.user.set_password(new_password)
         request.user.save()
+
+        log_action(
+            request,
+            action=AuditAction.CHANGE_PASSWORD,
+            module=AuditModule.USERS,
+            obj_id=request.user.id,
+            action_details=f'Changed password for user {request.user.username}',
+        )
 
         return _success(SuccessMessage.PASSWORD_CHANGED, message_code=SuccessCode.PASSWORD_CHANGED)
