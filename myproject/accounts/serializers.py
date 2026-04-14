@@ -28,10 +28,10 @@ class SignupSerializer(serializers.Serializer):
         return value
 
     def validate_group(self, value):
-        allowed_groups = {'law_firm_user', 'law_firm_admin'}
+        allowed_groups = {'law_user', 'law_admin'}
         normalized = value.strip()
         if normalized not in allowed_groups:
-            raise serializers.ValidationError('Group must be law_firm_user or law_firm_admin.')
+            raise serializers.ValidationError('Group must be law_user or law_admin.')
 
         group = Group.objects.select_related('profile').filter(name=normalized).first()
         if not group:
@@ -67,6 +67,19 @@ class SignupSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(trim_whitespace=True)
     password = serializers.CharField(write_only=True)
+
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    temp_token = serializers.CharField(write_only=True)
+    totp = serializers.CharField(write_only=True)
+
+
+class TwoFactorSetupSerializer(serializers.Serializer):
+    pass
+
+
+class TwoFactorConfirmSerializer(serializers.Serializer):
+    totp = serializers.CharField(write_only=True)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -109,6 +122,7 @@ class UserProfileOutputSerializer(serializers.Serializer):
     contact_number = serializers.CharField(allow_null=True)
     is_active = serializers.BooleanField()
     is_staff = serializers.BooleanField()
+    two_factor_enabled = serializers.BooleanField()
     law_firms = LawFirmAccessOutputSerializer(many=True)
     organisations = OrganisationAccessOutputSerializer(many=True)
     is_law_firm_admin = serializers.BooleanField()

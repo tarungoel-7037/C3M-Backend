@@ -1,19 +1,35 @@
+from datetime import timedelta
+
+import pyotp
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import Group, User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils import timezone
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from accounts.models import LawFirm, UserLawFirmAccess, UserProfile
 from accounts.serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
     SignupSerializer,
+    TwoFactorConfirmSerializer,
+    TwoFactorVerifySerializer,
     UserProfileOutputSerializer,
     UserSerializer,
 )
 from myproject.constants import AuditAction, AuditModule, ErrorCode, ErrorMessage, SuccessCode, SuccessMessage
 from myproject.utils import ApiView, _error, _success, log_action
+
+
+def _build_login_response(user):
+    """Issue access + refresh JWT cookies and return a success response for a fully-authenticated user."""
+    refresh = RefreshToken.for_user(user)
+    response = _success(SuccessMessage.LOGIN, data=UserSerializer(user).data, message_code=SuccessCode.LOGIN)
+    response.set_cookie('access_token', str(refresh.access_token), httponly=True, samesite='Lax')
+    response.set_cookie('refresh_token', str(refresh), httponly=True, samesite='Lax')
+    response.delete_cookie('sessionid')
+    return response
 
 
 class SignupView(ApiView):
@@ -73,12 +89,111 @@ class LoginView(ApiView):
         if user is None:
             return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
 
-        refresh = RefreshToken.for_user(user)
-        response = _success(SuccessMessage.LOGIN, data=UserSerializer(user).data, message_code=SuccessCode.LOGIN)
-        response.set_cookie('access_token', str(refresh.access_token), httponly=True, samesite='Lax')
-        response.set_cookie('refresh_token', str(refresh), httponly=True, samesite='Lax')
-        response.delete_cookie('sessionid')
-        return response
+        profile = getattr(user, 'profile', None)
+        if profile and profile.two_factor_enabled:
+            temp_token = self._generate_2fa_temp_token(user)
+            return _success(
+                SuccessMessage.LOGIN,
+                data={'requires_2fa': True, 'temp_token': temp_token},
+                message_code=SuccessCode.LOGIN,
+            )
+
+        return _build_login_response(user)
+
+    def _generate_2fa_temp_token(self, user):
+        token = AccessToken()
+        token['user_id'] = user.id
+        token['type'] = '2fa'
+        token.set_exp(from_time=timezone.now(), lifetime=timedelta(minutes=5))
+        return str(token)
+
+
+class LoginTwoFactorView(ApiView):
+    def post(self, request):
+        data = request.data.get('data', request.data)
+        serializer = TwoFactorVerifySerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+
+        temp_token = serializer.validated_data['temp_token']
+        totp_code = serializer.validated_data['totp']
+
+        try:
+            decoded = AccessToken(temp_token)
+        except Exception:
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        if decoded.get('type') != '2fa':
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        try:
+            user = User.objects.get(id=decoded['user_id'])
+        except User.DoesNotExist:
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        profile = getattr(user, 'profile', None)
+        if not profile or not profile.two_factor_enabled or not profile.two_factor_secret:
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        totp = pyotp.TOTP(profile.two_factor_secret)
+        if not totp.verify(totp_code, valid_window=1):
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        return _build_login_response(user)
+
+
+class TwoFactorSetupView(ApiView):
+    login_required = True
+
+    def post(self, request):
+        user = request.user
+        profile = getattr(user, 'profile', None)
+        if not profile:
+            profile = UserProfile.objects.create(user=user)
+
+        secret = pyotp.random_base32()
+        profile.two_factor_secret = secret
+        profile.two_factor_enabled = False
+        profile.save()
+
+        otp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+            name=user.email or user.username,
+            issuer_name='C3M',
+        )
+
+        return _success(
+            SuccessMessage.DEFAULT,
+            data={
+                'secret': secret,
+                'otpauth_url': otp_uri,
+                'two_factor_enabled': profile.two_factor_enabled,
+            },
+            message_code=SuccessCode.DEFAULT,
+        )
+
+
+class TwoFactorConfirmView(ApiView):
+    login_required = True
+
+    def post(self, request):
+        data = request.data.get('data', request.data)
+        serializer = TwoFactorConfirmSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+
+        totp_code = serializer.validated_data['totp']
+        profile = getattr(request.user, 'profile', None)
+        if not profile or not profile.two_factor_secret:
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        totp = pyotp.TOTP(profile.two_factor_secret)
+        if not totp.verify(totp_code, valid_window=1):
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        profile.two_factor_enabled = True
+        profile.save()
+
+        return _success(SuccessMessage.DEFAULT, data={'two_factor_enabled': True}, message_code=SuccessCode.DEFAULT)
 
 
 class LogoutView(ApiView):
@@ -159,6 +274,7 @@ class ProfileView(ApiView):
             'contact_number': profile.contact_number if profile else None,
             'is_active': user.is_active,
             'is_staff': user.is_staff,
+            'two_factor_enabled': profile.two_factor_enabled if profile else False,
             'law_firms': law_firms,
             'organisations': organisations,
             'is_law_firm_admin': is_law_firm_admin,
