@@ -8,6 +8,7 @@ from .views import (
     ProfileView,
     SignupView,
     TwoFactorConfirmView,
+    TwoFactorDisableView,
     TwoFactorSetupView,
 )
 
@@ -18,6 +19,7 @@ urlpatterns = [
     path('auth/login/verify-2fa/', LoginTwoFactorView.as_view(), name='login-verify-2fa'),
     path('auth/2fa/setup/', TwoFactorSetupView.as_view(), name='2fa-setup'),
     path('auth/2fa/confirm/', TwoFactorConfirmView.as_view(), name='2fa-confirm'),
+    path('auth/2fa/disable/', TwoFactorDisableView.as_view(), name='2fa-disable'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('whoami/', ProfileView.as_view(), name='profile'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),

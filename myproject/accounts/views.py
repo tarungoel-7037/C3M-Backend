@@ -196,6 +196,31 @@ class TwoFactorConfirmView(ApiView):
         return _success(SuccessMessage.DEFAULT, data={'two_factor_enabled': True}, message_code=SuccessCode.DEFAULT)
 
 
+class TwoFactorDisableView(ApiView):
+    login_required = True
+
+    def post(self, request):
+        data = request.data.get('data', request.data)
+        serializer = TwoFactorConfirmSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+
+        totp_code = serializer.validated_data['totp']
+        profile = getattr(request.user, 'profile', None)
+        if not profile or not profile.two_factor_enabled or not profile.two_factor_secret:
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        totp = pyotp.TOTP(profile.two_factor_secret)
+        if not totp.verify(totp_code, valid_window=1):
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        profile.two_factor_enabled = False
+        profile.two_factor_secret = None
+        profile.save()
+
+        return _success(SuccessMessage.DEFAULT, data={'two_factor_enabled': False}, message_code=SuccessCode.DEFAULT)
+
+
 class LogoutView(ApiView):
     login_required = True
 
