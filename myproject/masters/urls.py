@@ -1,11 +1,12 @@
 from django.urls import path
 
 from .views import (
+    ContractRoleCreateView,
     ContractRoleTypeListView,
     ContractTaskTypeListView,
     ContractTypeListView,
     GroupListView,
-    DocumentDownloadView
+    DocumentDownloadView,
 )
 
 urlpatterns = [
@@ -13,6 +14,7 @@ urlpatterns = [
     path('masters/groups/', GroupListView.as_view(), name='masters-groups'),
     path('masters/contract-task-types/', ContractTaskTypeListView.as_view(), name='masters-contract-task-types'),
     path('masters/contract-role-types/', ContractRoleTypeListView.as_view(), name='masters-contract-role-types'),
+    path('masters/roles/', ContractRoleCreateView.as_view(), name='masters-contract-role-create'),
     path('masters/document-download/', DocumentDownloadView.as_view(), name='masters-document-download'),
 ]
 

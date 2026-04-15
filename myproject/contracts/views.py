@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
 from django.utils.text import get_valid_filename
+from rest_framework import serializers
 from rest_framework.pagination import PageNumberPagination
 
 from accounts.models import LawFirm, Organisation, UserLawFirmAccess, UserOrganisationAccess
@@ -25,8 +26,10 @@ from contracts.serializers import (
 from myapp.models import (
     ContractsContract,
     ContractsContractdocument,
+    ContractsContractuserrole,
     ObligationsEscalationmatrix,
     ObligationsObligation,
+    MastersContractroletype,
     MastersContracttype,
     MastersDocumenttype,
     MastersTasktype,
@@ -85,6 +88,36 @@ def _user_has_contract_access(user, contract):
         organisation_id=contract.organisation_id,
     ).exists()
     return has_law_firm_access or has_organisation_access
+
+
+def _get_user_contract_permissions(user_id, contract_id):
+    assignment = ContractsContractuserrole.objects.filter(
+        contract_id=contract_id,
+        user_id=user_id,
+        deleted_at__isnull=True,
+    ).first()
+
+    if not assignment:
+        return None  # No role assigned → full access
+
+    from myapp.models import MastersContractpermission, MastersContractroletypePermissions
+    permission_ids = MastersContractroletypePermissions.objects.filter(
+        contractroletype_id=assignment.role_id,
+    ).values_list('contractpermission_id', flat=True)
+
+    permissions = MastersContractpermission.objects.filter(
+        id__in=permission_ids,
+        deleted_at__isnull=True,
+    ).values_list('name', flat=True)
+
+    return set(permissions)
+
+
+def _user_has_rbac_permission(user, contract, permission_name):
+    permissions = _get_user_contract_permissions(user.id, contract.id)
+    if permissions is None:
+        return True  
+    return permission_name in permissions
 
 
 class ContractsPagination(PageNumberPagination):
@@ -417,6 +450,9 @@ class ObligationCreateView(ApiView):
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
 
+        if not _user_has_rbac_permission(request.user, contract, 'can_manage_contract_obligations'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
+
         data = request.data.get('data', request.data)
         serializer = ObligationCreateSerializer(data=data, context={'contract_id': contract.id})
         if not serializer.is_valid():
@@ -478,6 +514,9 @@ class ObligationListView(ApiView):
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
 
+        if not _user_has_rbac_permission(request.user, contract, 'can_view_contract_obligations'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
+
         obligations = ObligationsObligation.objects.filter(
             contract_id=contract.id,
             deleted_at__isnull=True,
@@ -511,6 +550,9 @@ class ContractTaskListView(ApiView):
 
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        if not _user_has_rbac_permission(request.user, contract, 'can_view_contract_tasks'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
 
         obligation_ids = ObligationsObligation.objects.filter(
             contract_id=contract.id,
@@ -550,6 +592,9 @@ class ContractTaskCreateView(ApiView):
 
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.CONTRACT_ACCESS_DENIED, status=403)
+
+        if not _user_has_rbac_permission(request.user, contract, 'can_manage_contract_tasks'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
 
         data = request.data.get('data', request.data)
         serializer = ContractTaskCreateSerializer(data=data, context={'contract': contract})
@@ -618,6 +663,9 @@ class TaskDetailView(ApiView):
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.TASK_ACCESS_DENIED, status=403)
 
+        if not _user_has_rbac_permission(request.user, contract, 'can_view_contract_tasks'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
+
         serializer = TaskOutputSerializer(task, include_subtasks=True)
         return _success(
             SuccessMessage.TASK_RETRIEVED,
@@ -644,6 +692,9 @@ class TaskUpdateView(ApiView):
 
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.TASK_ACCESS_DENIED, status=403)
+
+        if not _user_has_rbac_permission(request.user, contract, 'can_manage_contract_tasks'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
 
         data = request.data.get('data', request.data)
         serializer = ContractTaskUpdateSerializer(data=data, partial=True, context={'task': task})
@@ -745,6 +796,9 @@ class TaskDeleteView(ApiView):
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.TASK_ACCESS_DENIED, status=403)
 
+        if not _user_has_rbac_permission(request.user, contract, 'can_delete_contract_tasks'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
+
         now = timezone.now()
         task.deleted_at = now
         task.updated_at = now
@@ -780,6 +834,9 @@ class ObligationDetailView(ApiView):
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.OBLIGATION_ACCESS_DENIED, status=403)
 
+        if not _user_has_rbac_permission(request.user, contract, 'can_view_contract_obligations'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
+
         serializer = ObligationOutputSerializer(obligation)
         return _success(
             SuccessMessage.OBLIGATION_RETRIEVED,
@@ -802,6 +859,9 @@ class ObligationUpdateView(ApiView):
 
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.OBLIGATION_ACCESS_DENIED, status=403)
+
+        if not _user_has_rbac_permission(request.user, contract, 'can_manage_contract_obligations'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
 
         data = request.data.get('data', request.data)
         serializer = ObligationUpdateSerializer(
@@ -886,6 +946,9 @@ class ObligationDeleteView(ApiView):
 
         if not _user_has_contract_access(request.user, contract):
             return _error(ErrorMessage.OBLIGATION_ACCESS_DENIED, status=403)
+
+        if not _user_has_rbac_permission(request.user, contract, 'can_delete_contract_obligations'):
+            return _error(ErrorMessage.RBAC_PERMISSION_DENIED, status=403)
 
         now = timezone.now()
         with transaction.atomic():
@@ -1083,4 +1146,127 @@ class ContractUpdateView(ApiView):
             SuccessMessage.CONTRACT_UPDATED,
             message_code=SuccessCode.CONTRACT_UPDATED,
             data={'contract': data},
+        )
+
+
+class ContractResponsibilityCreateSerializer(serializers.Serializer):
+    user = serializers.IntegerField()
+    role = serializers.IntegerField()
+
+
+class ContractResponsibilityCreateView(ApiView):
+    login_required = True
+
+    def post(self, request, contract_id):
+        contract = _get_contract(contract_id)
+        if not contract:
+            return _error(
+                ErrorMessage.CONTRACT_NOT_FOUND,
+                message_code=ErrorCode.DEFAULT,
+                status=404,
+            )
+
+        data = request.data.get('data', request.data)
+        serializer = ContractResponsibilityCreateSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        user_id = vd['user']
+        role_id = vd['role']
+
+        # Validate the user exists and is active
+        try:
+            target_user = User.objects.get(id=user_id, is_active=True)
+        except User.DoesNotExist:
+            return _error(
+                ErrorMessage.USER_NOT_FOUND,
+                message_code=ErrorCode.USER_NOT_FOUND,
+                status=404,
+            )
+
+        # Validate user has access to the contract's organisation
+        has_org_access = UserOrganisationAccess.objects.filter(
+            user_id=user_id,
+            organisation_id=contract.organisation_id,
+        ).exists()
+        if not has_org_access:
+            return _error(
+                ErrorMessage.USER_NOT_IN_ORG,
+                message_code=ErrorCode.USER_NOT_IN_ORG,
+                status=403,
+            )
+
+        # Validate the role exists and is not soft-deleted
+        role = MastersContractroletype.objects.filter(
+            id=role_id,
+            deleted_at__isnull=True,
+        ).first()
+        if not role:
+            return _error(
+                ErrorMessage.CONTRACT_ROLE_NOT_FOUND,
+                message_code=ErrorCode.CONTRACT_ROLE_NOT_FOUND,
+                status=404,
+            )
+
+        # Check for duplicate assignment
+        already_exists = ContractsContractuserrole.objects.filter(
+            contract_id=contract.id,
+            user_id=user_id,
+            role_id=role_id,
+            deleted_at__isnull=True,
+        ).exists()
+        if already_exists:
+            return _error(
+                ErrorMessage.RESPONSIBILITY_ALREADY_EXISTS,
+                message_code=ErrorCode.RESPONSIBILITY_ALREADY_EXISTS,
+            )
+
+        ts = timezone.now()
+        assignment = ContractsContractuserrole.objects.create(
+            contract_id=contract.id,
+            user_id=user_id,
+            role_id=role_id,
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        log_action(
+            request,
+            action=AuditAction.ASSIGN_CONTRACT_RESPONSIBILITY,
+            module=AuditModule.CONTRACT_RESPONSIBILITY,
+            obj_id=assignment.id,
+            related_object_id=contract.id,
+            action_details=(
+                f'Assigned role "{role.role_name}" to user {target_user.get_full_name() or target_user.username}'
+                f' on contract {contract.project_title}'
+            ),
+        )
+
+        return _success(
+            SuccessMessage.CONTRACT_RESPONSIBILITY_CREATED,
+            message_code=SuccessCode.CONTRACT_RESPONSIBILITY_CREATED,
+            data={
+                'responsibility': {
+                    'id': assignment.id,
+                    'contract_id': assignment.contract_id,
+                    'user': {
+                        'id': target_user.id,
+                        'username': target_user.username,
+                        'full_name': target_user.get_full_name(),
+                        'email': target_user.email,
+                    },
+                    'role': {
+                        'id': role.id,
+                        'name': role.role_name,
+                        'display_name': role.display_name,
+                    },
+                    'created_at': assignment.created_at,
+                }
+            },
+            status=201,
         )

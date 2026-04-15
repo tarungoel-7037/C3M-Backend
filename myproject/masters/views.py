@@ -1,10 +1,25 @@
-﻿from rest_framework import serializers
+﻿from django.utils.timezone import now
+
+from rest_framework import serializers
 from rest_framework.pagination import PageNumberPagination
 
 from accounts.models import GroupProfile
-from myapp.models import MastersContractroletype, MastersContracttype, MastersTasktype
-from myproject.constants import SuccessCode, SuccessMessage
-from myproject.utils import ApiView, _success
+from myapp.models import (
+    MastersContractpermission,
+    MastersContractroletype,
+    MastersContractroletypePermissions,
+    MastersContracttype,
+    MastersTasktype,
+)
+from myproject.constants import (
+    AuditAction,
+    AuditModule,
+    ErrorCode,
+    ErrorMessage,
+    SuccessCode,
+    SuccessMessage,
+)
+from myproject.utils import ApiView, _error, _success, log_action
 
 
 class ContractTypeSerializer(serializers.ModelSerializer):
@@ -22,7 +37,24 @@ class TaskTypeSerializer(serializers.ModelSerializer):
 class ContractRoleTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = MastersContractroletype
-        fields = ['id', 'role_name', 'description', 'created_at']
+        fields = ['id', 'role_name', 'display_name', 'description', 'group_entity_type', 'created_at']
+
+
+class ContractRoleCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    display_name = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    group_entity_type = serializers.ChoiceField(
+        choices=['law', 'org'],
+        required=False,
+        allow_blank=True,
+        default='',
+    )
+    permissions = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
 
 
 class GroupSerializer(serializers.Serializer):
@@ -98,6 +130,87 @@ class ContractRoleTypeListView(ApiView):
                     'previous': paginator.get_previous_link(),
                 },
             },
+        )
+
+
+class ContractRoleCreateView(ApiView):
+    login_required = True
+
+    def post(self, request):
+        data = request.data.get('data', request.data)
+        serializer = ContractRoleCreateSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(
+                ErrorMessage.VALIDATION_ERROR,
+                message_code=ErrorCode.VALIDATION_ERROR,
+                errors=serializer.errors,
+            )
+
+        vd = serializer.validated_data
+        permission_names = vd.get('permissions', [])
+
+        # Resolve permissions by name
+        permissions = []
+        if permission_names:
+            permissions = list(
+                MastersContractpermission.objects.filter(
+                    name__in=permission_names,
+                    deleted_at__isnull=True,
+                )
+            )
+            found_names = {p.name for p in permissions}
+            missing = set(permission_names) - found_names
+            if missing:
+                return _error(
+                    ErrorMessage.PERMISSION_NOT_FOUND.format(names=', '.join(sorted(missing))),
+                    message_code=ErrorCode.PERMISSION_NOT_FOUND,
+                )
+
+        ts = now()
+        role = MastersContractroletype.objects.create(
+            role_name=vd['name'],
+            display_name=vd['display_name'],
+            description=vd.get('description', ''),
+            group_entity_type=vd.get('group_entity_type', '') or None,
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        if permissions:
+            MastersContractroletypePermissions.objects.bulk_create([
+                MastersContractroletypePermissions(
+                    contractroletype_id=role.id,
+                    contractpermission_id=p.id,
+                )
+                for p in permissions
+            ])
+
+        log_action(
+            request,
+            action=AuditAction.CREATE_CONTRACT_ROLE,
+            module=AuditModule.MASTERS,
+            obj_id=role.id,
+            action_details=f'Created contract role {role.role_name}',
+        )
+
+        return _success(
+            SuccessMessage.CONTRACT_ROLE_CREATED,
+            message_code=SuccessCode.CONTRACT_ROLE_CREATED,
+            data={
+                'role': {
+                    'id': role.id,
+                    'name': role.role_name,
+                    'display_name': role.display_name,
+                    'description': role.description,
+                    'group_entity_type': role.group_entity_type,
+                    'permissions': [
+                        {'id': p.id, 'name': p.name, 'description': p.description}
+                        for p in permissions
+                    ],
+                    'created_at': role.created_at,
+                }
+            },
+            status=201,
         )
 
 

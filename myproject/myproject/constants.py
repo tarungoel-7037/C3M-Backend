@@ -27,8 +27,10 @@ class SuccessCode:
     TASK_DELETED        = 1274
     CONTRACT_TYPES_RETRIEVED = 1600
     CONTRACT_ROLE_TYPES_RETRIEVED = 1601
+    CONTRACT_ROLE_CREATED = 1602
     TASK_TYPES_RETRIEVED = 1603
     GROUPS_RETRIEVED = 1604
+    CONTRACT_RESPONSIBILITY_CREATED = 1605
 
 
 class SuccessMessage:
@@ -58,8 +60,10 @@ class SuccessMessage:
     CONTRACT_DELETED   = 'Contract deleted successfully.'
     CONTRACT_TYPES_RETRIEVED = 'Contract types retrieved successfully.'
     CONTRACT_ROLE_TYPES_RETRIEVED = 'Contract role types retrieved successfully.'
+    CONTRACT_ROLE_CREATED = 'Contract role created successfully.'
     TASK_TYPES_RETRIEVED = 'Task types retrieved successfully.'
     GROUPS_RETRIEVED = 'Groups retrieved successfully.'
+    CONTRACT_RESPONSIBILITY_CREATED = 'Contract responsibility assigned successfully.'
 
 
 class AuditModule:
@@ -68,6 +72,8 @@ class AuditModule:
     OBLIGATIONS = 'obligations'
     TASKS = 'tasks'
     USERS = 'users'
+    MASTERS = 'masters'
+    CONTRACT_RESPONSIBILITY = 'contract_responsibility'
 
 
 class AuditAction:
@@ -81,6 +87,8 @@ class AuditAction:
     CREATE_CONTRACT_TASK = 'Create Contract Task'
     UPDATE_CONTRACT_TASK = 'Update Contract Task'
     DELETE_CONTRACT_TASK = 'Delete Contract Task'
+    CREATE_CONTRACT_ROLE = 'Create Contract Role'
+    ASSIGN_CONTRACT_RESPONSIBILITY = 'Assign Contract Responsibility'
     CREATE_USER = 'Create User'
     UPDATE_USER = 'Update User'
     REMOVE_USER = 'Remove User'
@@ -112,6 +120,10 @@ class ErrorCode:
     GROUP_NOT_FOUND         = 3012
     USER_ALREADY_IN_ORG     = 3013
     USER_NOT_FOUND          = 3014
+    CONTRACT_ROLE_NOT_FOUND = 3015
+    PERMISSION_NOT_FOUND    = 3016
+    USER_NOT_IN_ORG         = 3017
+    RESPONSIBILITY_ALREADY_EXISTS = 3018
 
 
 class ErrorMessage:
@@ -137,5 +149,9 @@ class ErrorMessage:
     TASK_NOT_FOUND                = 'Task not found.'
     TASK_ACCESS_DENIED            = 'You do not have permission to access this task.'
     CONTRACT_TYPE_NOT_FOUND       = 'No contract types found'
-    
-    
+    CONTRACT_ROLE_NOT_FOUND       = 'Contract role type not found.'
+    PERMISSION_NOT_FOUND          = 'One or more permissions not found: {names}.'
+    USER_NOT_IN_ORG               = 'User does not have access to this organisation.'
+    RESPONSIBILITY_ALREADY_EXISTS = 'This user already has this role assigned on this contract.'
+    RBAC_PERMISSION_DENIED        = 'You do not have permission to perform this action.'
+

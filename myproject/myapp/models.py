@@ -364,6 +364,7 @@ class MastersContractroletype(models.Model):
     role_name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     display_name = models.CharField(max_length=255)
+    group_entity_type = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         db_table = 'masters_contractroletype'
