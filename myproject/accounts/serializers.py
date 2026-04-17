@@ -69,17 +69,17 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
-class TwoFactorVerifySerializer(serializers.Serializer):
-    temp_token = serializers.CharField(write_only=True)
-    totp = serializers.CharField(write_only=True)
-
-
 class TwoFactorSetupSerializer(serializers.Serializer):
-    pass
+    method = serializers.ChoiceField(choices=['app', 'email'], default='email')
 
 
 class TwoFactorConfirmSerializer(serializers.Serializer):
-    totp = serializers.CharField(write_only=True)
+    otp = serializers.CharField(write_only=True, max_length=6)
+
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    temp_token = serializers.CharField(write_only=True)
+    otp = serializers.CharField(write_only=True, max_length=6)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -123,6 +123,7 @@ class UserProfileOutputSerializer(serializers.Serializer):
     is_active = serializers.BooleanField()
     is_staff = serializers.BooleanField()
     two_factor_enabled = serializers.BooleanField()
+    two_factor_method = serializers.CharField(allow_null=True)
     law_firms = LawFirmAccessOutputSerializer(many=True)
     organisations = OrganisationAccessOutputSerializer(many=True)
     is_law_firm_admin = serializers.BooleanField()

@@ -8,12 +8,14 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
+from accounts.email_utils import clear_email_otp, send_2fa_otp_email, set_email_otp, verify_email_otp
 from accounts.models import LawFirm, UserLawFirmAccess, UserProfile
 from accounts.serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
     SignupSerializer,
     TwoFactorConfirmSerializer,
+    TwoFactorSetupSerializer,
     TwoFactorVerifySerializer,
     UserProfileOutputSerializer,
     UserSerializer,
@@ -92,9 +94,15 @@ class LoginView(ApiView):
         profile = getattr(user, 'profile', None)
         if profile and profile.two_factor_enabled:
             temp_token = self._generate_2fa_temp_token(user)
+            method = profile.two_factor_method or UserProfile.TWO_FACTOR_METHOD_EMAIL
+
+            if method == UserProfile.TWO_FACTOR_METHOD_EMAIL:
+                otp = set_email_otp(profile)
+                send_2fa_otp_email(user.email, otp, user.get_full_name() or user.username)
+
             return _success(
                 SuccessMessage.LOGIN,
-                data={'requires_2fa': True, 'temp_token': temp_token},
+                data={'requires_2fa': True, 'temp_token': temp_token, 'two_factor_method': method},
                 message_code=SuccessCode.LOGIN,
             )
 
@@ -116,7 +124,7 @@ class LoginTwoFactorView(ApiView):
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
 
         temp_token = serializer.validated_data['temp_token']
-        totp_code = serializer.validated_data['totp']
+        otp_code = serializer.validated_data['otp']
 
         try:
             decoded = AccessToken(temp_token)
@@ -132,12 +140,20 @@ class LoginTwoFactorView(ApiView):
             return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
 
         profile = getattr(user, 'profile', None)
-        if not profile or not profile.two_factor_enabled or not profile.two_factor_secret:
+        if not profile or not profile.two_factor_enabled:
             return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
 
-        totp = pyotp.TOTP(profile.two_factor_secret)
-        if not totp.verify(totp_code, valid_window=1):
-            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+        method = profile.two_factor_method or UserProfile.TWO_FACTOR_METHOD_EMAIL
+
+        if method == UserProfile.TWO_FACTOR_METHOD_APP:
+            if not profile.two_factor_secret:
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+            if not pyotp.TOTP(profile.two_factor_secret).verify(otp_code, valid_window=1):
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+        else:
+            if not verify_email_otp(profile, otp_code):
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+            clear_email_otp(profile)
 
         return _build_login_response(user)
 
@@ -147,27 +163,42 @@ class TwoFactorSetupView(ApiView):
 
     def post(self, request):
         user = request.user
+        data = request.data.get('data', request.data)
+        serializer = TwoFactorSetupSerializer(data=data)
+        if not serializer.is_valid():
+            return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
+
+        method = serializer.validated_data['method']
         profile = getattr(user, 'profile', None)
         if not profile:
             profile = UserProfile.objects.create(user=user)
 
-        secret = pyotp.random_base32()
-        profile.two_factor_secret = secret
+        profile.two_factor_method = method
         profile.two_factor_enabled = False
-        profile.save()
 
-        otp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
-            name=user.email or user.username,
-            issuer_name='C3M',
-        )
+        if method == UserProfile.TWO_FACTOR_METHOD_APP:
+            secret = pyotp.random_base32()
+            profile.two_factor_secret = secret
+            profile.save()
+            otp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+                name=user.email or user.username,
+                issuer_name='C3M',
+            )
+            return _success(
+                SuccessMessage.DEFAULT,
+                data={'method': method, 'secret': secret, 'otpauth_url': otp_uri},
+                message_code=SuccessCode.DEFAULT,
+            )
+
+        # email method — clear any old app secret, send OTP for confirmation
+        profile.two_factor_secret = None
+        profile.save()
+        otp = set_email_otp(profile)
+        send_2fa_otp_email(user.email, otp, user.get_full_name() or user.username)
 
         return _success(
             SuccessMessage.DEFAULT,
-            data={
-                'secret': secret,
-                'otpauth_url': otp_uri,
-                'two_factor_enabled': profile.two_factor_enabled,
-            },
+            data={'method': method, 'otp_sent': True},
             message_code=SuccessCode.DEFAULT,
         )
 
@@ -181,19 +212,27 @@ class TwoFactorConfirmView(ApiView):
         if not serializer.is_valid():
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
 
-        totp_code = serializer.validated_data['totp']
+        otp_code = serializer.validated_data['otp']
         profile = getattr(request.user, 'profile', None)
-        if not profile or not profile.two_factor_secret:
+        if not profile:
             return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
 
-        totp = pyotp.TOTP(profile.two_factor_secret)
-        if not totp.verify(totp_code, valid_window=1):
-            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+        method = profile.two_factor_method or UserProfile.TWO_FACTOR_METHOD_EMAIL
+
+        if method == UserProfile.TWO_FACTOR_METHOD_APP:
+            if not profile.two_factor_secret:
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+            if not pyotp.TOTP(profile.two_factor_secret).verify(otp_code, valid_window=1):
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+        else:
+            if not verify_email_otp(profile, otp_code):
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+            clear_email_otp(profile)
 
         profile.two_factor_enabled = True
         profile.save()
 
-        return _success(SuccessMessage.DEFAULT, data={'two_factor_enabled': True}, message_code=SuccessCode.DEFAULT)
+        return _success(SuccessMessage.DEFAULT, data={'two_factor_enabled': True, 'two_factor_method': method}, message_code=SuccessCode.DEFAULT)
 
 
 class TwoFactorDisableView(ApiView):
@@ -205,20 +244,52 @@ class TwoFactorDisableView(ApiView):
         if not serializer.is_valid():
             return _error(ErrorMessage.VALIDATION_ERROR, message_code=ErrorCode.VALIDATION_ERROR, errors=serializer.errors)
 
-        totp_code = serializer.validated_data['totp']
+        otp_code = serializer.validated_data['otp']
         profile = getattr(request.user, 'profile', None)
-        if not profile or not profile.two_factor_enabled or not profile.two_factor_secret:
+        if not profile or not profile.two_factor_enabled:
             return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
 
-        totp = pyotp.TOTP(profile.two_factor_secret)
-        if not totp.verify(totp_code, valid_window=1):
-            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+        method = profile.two_factor_method or UserProfile.TWO_FACTOR_METHOD_EMAIL
+
+        if method == UserProfile.TWO_FACTOR_METHOD_APP:
+            if not profile.two_factor_secret:
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+            if not pyotp.TOTP(profile.two_factor_secret).verify(otp_code, valid_window=1):
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+        else:
+            if not verify_email_otp(profile, otp_code):
+                return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+            clear_email_otp(profile)
 
         profile.two_factor_enabled = False
         profile.two_factor_secret = None
+        profile.two_factor_method = UserProfile.TWO_FACTOR_METHOD_EMAIL
         profile.save()
 
         return _success(SuccessMessage.DEFAULT, data={'two_factor_enabled': False}, message_code=SuccessCode.DEFAULT)
+
+
+class TwoFactorSendOtpView(ApiView):
+    """Send an email OTP to the authenticated user. Used when method is 'email' — before confirm or disable."""
+    login_required = True
+
+    def post(self, request):
+        user = request.user
+        profile = getattr(user, 'profile', None)
+        if not profile:
+            return _error(ErrorMessage.INVALID_CREDENTIALS, message_code=ErrorCode.INVALID_CREDENTIALS, status=401)
+
+        method = profile.two_factor_method or UserProfile.TWO_FACTOR_METHOD_EMAIL
+        if method != UserProfile.TWO_FACTOR_METHOD_EMAIL:
+            return _error(
+                'OTP email is only available for the email 2FA method.',
+                message_code=ErrorCode.VALIDATION_ERROR,
+                status=400,
+            )
+
+        otp = set_email_otp(profile)
+        send_2fa_otp_email(user.email, otp, user.get_full_name() or user.username)
+        return _success(SuccessMessage.DEFAULT, data={'otp_sent': True}, message_code=SuccessCode.DEFAULT)
 
 
 class LogoutView(ApiView):
@@ -300,6 +371,7 @@ class ProfileView(ApiView):
             'is_active': user.is_active,
             'is_staff': user.is_staff,
             'two_factor_enabled': profile.two_factor_enabled if profile else False,
+            'two_factor_method': profile.two_factor_method if profile else None,
             'law_firms': law_firms,
             'organisations': organisations,
             'is_law_firm_admin': is_law_firm_admin,

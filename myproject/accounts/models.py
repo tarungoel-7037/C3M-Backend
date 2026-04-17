@@ -40,10 +40,23 @@ class Organisation(models.Model):
 
 
 class UserProfile(models.Model):
+    TWO_FACTOR_METHOD_EMAIL = 'email'
+    TWO_FACTOR_METHOD_APP = 'app'
+    TWO_FACTOR_METHOD_CHOICES = [
+        (TWO_FACTOR_METHOD_EMAIL, 'Email OTP'),
+        (TWO_FACTOR_METHOD_APP, 'Google Authenticator'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     contact_number = models.CharField(max_length=15, blank=True, null=True)
     two_factor_enabled = models.BooleanField(default=False)
+    two_factor_method = models.CharField(
+        max_length=10, choices=TWO_FACTOR_METHOD_CHOICES,
+        default=TWO_FACTOR_METHOD_EMAIL, blank=True, null=True,
+    )
     two_factor_secret = models.CharField(max_length=32, blank=True, null=True)
+    two_factor_otp = models.CharField(max_length=6, blank=True, null=True)
+    two_factor_otp_expiry = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
